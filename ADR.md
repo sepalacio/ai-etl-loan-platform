@@ -313,16 +313,18 @@ The system extracts and stores personally identifiable information from loan doc
 
 ### Decision
 
-All PII fields are encrypted at the application layer before being written to the database, using **AES-256-GCM** with a per-value random IV. Decryption occurs transparently on read via TypeORM `ValueTransformer`. The database stores only ciphertext for PII columns.
+All PII fields are encrypted at the application layer before being written to the database, using **AES-256-GCM** with a per-value random IV. Encryption is applied explicitly in the service layer via an injected `EncryptionService`. The database stores only ciphertext for PII columns.
+
+**Implementation note:** TypeORM `ValueTransformer` was considered for transparent encryption at the ORM layer but not used. Transformers are static decoration metadata with no access to the NestJS DI container — they cannot inject `EncryptionService`, which holds the encryption key via `ConfigService`. The production path is a TypeORM `@EventSubscriber` hooking into `beforeInsert`, `beforeUpdate`, and `afterLoad` lifecycle events, which has full DI access and enforces encryption transparently without per-call-site responsibility.
 
 **Encrypted fields:**
 
 | Table | Fields |
 |---|---|
-| `borrowers` | `name_first`, `name_last`, `ssn_masked`, `current_address`, `email`, `phone` |
+| `borrower_profiles` | `ssn`, `dob` |
 | `applications` | `borrower_email` |
-| `account_records` | `account_number_masked` |
-| `documents` | `raw_extraction_json` (may contain PII from LLM response) |
+| `account_records` | `account_number` |
+| `documents` | `rawLlmJson` (may contain PII from LLM response) |
 
 **Key management:** `PII_ENCRYPTION_KEY` environment variable in development. AWS KMS-derived data encryption key in production.
 

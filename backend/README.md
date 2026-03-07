@@ -1,98 +1,118 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
-</p>
+# LoanPro API — Backend
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+NestJS REST API for unstructured loan document extraction using Claude AI.
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+## Prerequisites
 
-## Description
+- **Node.js 22** (managed via [nvm](https://github.com/nvm-sh/nvm) — `.nvmrc` is included)
+- **Docker** (for the local Postgres instance)
+- **npm**
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
-
-## Project setup
+## 1. Install dependencies
 
 ```bash
-$ npm install
+cd backend
+npm install
 ```
 
-## Compile and run the project
+## 2. Configure environment
 
 ```bash
-# development
-$ npm run start
-
-# watch mode
-$ npm run start:dev
-
-# production mode
-$ npm run start:prod
+cp .env.example .env
 ```
 
-## Run tests
+Edit `.env` and fill in the required secrets:
+
+| Variable | Description |
+|---|---|
+| `DB_PASSWORD` | Postgres password (must match `docker-compose.yml`) |
+| `AWS_ACCESS_KEY_ID` | AWS credentials for S3 document storage |
+| `AWS_SECRET_ACCESS_KEY` | AWS credentials for S3 document storage |
+| `ANTHROPIC_API_KEY` | Claude API key for document extraction |
+| `SMTP_USER` / `SMTP_PASS` | SMTP credentials (use [Mailtrap](https://mailtrap.io) locally) |
+| `ENCRYPTION_KEY` | 64-char hex key — generate with `openssl rand -hex 32` |
+
+> Variables with defaults (`PORT`, `DB_HOST`, `API_PREFIX`, etc.) can be left as-is for local development.
+
+## 3. Start the database
+
+From the project root
 
 ```bash
-# unit tests
-$ npm run test
-
-# e2e tests
-$ npm run test:e2e
-
-# test coverage
-$ npm run test:cov
+docker compose up -d
 ```
 
-## Deployment
+This starts a Postgres 16 container (`loanpro-db`) on port **5433** with a named volume for persistence.
 
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
+> Port 5433 is used to avoid conflicts with a local Postgres instance on 5432.
 
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
+To stop: `docker compose down` (add `-v` to also remove the data volume).
+
+## 4. Generate and run migrations
+
+Migration files are not committed — they must be generated from the entity definitions against a live database. The database (step 3) must be running before this step.
 
 ```bash
-$ npm install -g @nestjs/mau
-$ mau deploy
+# Generate the initial schema migration
+npm run migration:generate -- src/database/migrations/InitialSchema
+
+# Apply it
+npm run migration:run
 ```
 
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
+In **development**, any pending migrations also run automatically on app startup (`migrationsRun: true`). Generating and running once before the first start is still recommended to have an explicit migration file in the repo.
 
-## Resources
+In **production** (`NODE_ENV=production`), auto-run is disabled. Migrations must be run explicitly as a pre-deployment step before starting the new app version:
 
-Check out a few resources that may come in handy when working with NestJS:
+```bash
+NODE_ENV=production npm run migration:run
+```
 
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
+Other migration commands:
 
-## Support
+```bash
+# Generate a migration after entity changes
+npm run migration:generate -- src/database/migrations/<MigrationName>
 
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
+# Revert the last applied migration
+npm run migration:revert
 
-## Stay in touch
+# List applied/pending migrations
+npm run migration:show
+```
 
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
+> The CLI uses `src/database/data-source.ts` which reads `.env` directly via dotenv — no app bootstrap required.
 
-## License
+## 5. Start the dev server
 
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+```bash
+npm run start:dev
+```
+
+The server starts on `http://localhost:3000` (or whatever `PORT` is set to).
+
+## API
+
+| Endpoint | Description |
+|---|---|
+| `GET /health` | Health check |
+| `GET /api/docs` | Swagger UI (development only) |
+| `POST /api/applications` | Create a loan application |
+| `GET /api/applications` | List applications |
+| `GET /api/applications/:id` | Get application details |
+| `POST /upload/:token` | Borrower uploads documents via their unique token |
+| `GET /api/applications/:id/profile` | Get structured borrower profile for an application |
+
+All protected endpoints require the `X-Lender-Email` header.
+
+## Available scripts
+
+```bash
+npm run start:dev       # Development server (watch mode)
+npm run start:prod      # Production server (from dist/)
+npm run build           # Compile TypeScript
+npm run lint            # ESLint with auto-fix
+npm run test            # Unit tests
+npm run test:cov        # Unit tests with coverage
+npm run test:e2e        # End-to-end tests
+```

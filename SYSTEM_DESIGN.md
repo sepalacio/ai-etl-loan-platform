@@ -161,8 +161,8 @@ The lender dashboard reads document status in real time. A failed document displ
 ### 3.5 Storage (L1 → L2)
 
 - **L1** writes to `income_records` and `account_records`, each row carrying `source_document_id` as a foreign key — every extracted field is traceable to the originating document
-- Before normalised rows are written, the raw LLM JSON response is stored on the document record (`raw_extraction_json`). This means if L1 fails, the extraction result is not lost and the load step can be replayed without re-calling the LLM
-- **L2** recalculates `application.completion_pct` based on the ratio of `COMPLETE` documents to total expected document types
+- Before normalised rows are written, the raw LLM JSON response is stored on the document record (`rawLlmJson`). This means if L1 fails, the extraction result is not lost and the load step can be replayed without re-calling the LLM
+- **L2** recalculates `application.completion_pct` as `COMPLETE documents / total documents × 100`, written via `appRepo.update()` immediately after each document reaches `COMPLETE` status
 
 ### 3.6 Retrieval
 
@@ -232,7 +232,7 @@ Every 5 minutes:
             EXTRACTING   → resume from T1
             VALIDATING   → resume from T2
             RESOLVING    → resume from T3
-            LOADING      → resume from L1 using stored raw_extraction_json
+            LOADING      → resume from L1 using stored rawLlmJson
                            (no LLM call needed — result already saved)
 
   3. If retry_count >= MAX_RETRIES (3):
@@ -242,7 +242,7 @@ Every 5 minutes:
 
 **Why this works:**
 - The state machine guarantees the cron knows exactly which step to resume from — no ambiguity about what has and has not been executed
-- Storing `raw_extraction_json` on the document record before the load step means the cron can replay L1 without re-calling the LLM, preserving both accuracy and cost
+- Storing `rawLlmJson` on the document record before the load step means the cron can replay L1 without re-calling the LLM, preserving both accuracy and cost
 - Documents that fail permanently are caught by `MAX_RETRIES` and surfaced to the lender rather than retrying indefinitely
 - No external dependency — implemented entirely within NestJS using `@nestjs/schedule`
 
@@ -325,54 +325,66 @@ User:
   [first-page text content]
 ```
 
-**Extraction prompt (T1)**
+**Extraction (T1) — Anthropic Tool Use**
 
-The extraction prompt is document-type specific. The system prompt defines the exact output schema expected. The user message contains the document content. The system prompt is identical for every document of the same type, making it a prime candidate for prompt caching.
+Extraction uses Anthropic's tool use API with `tool_choice: { type: "tool" }` (forced call). Each `DocumentType` has a dedicated `Anthropic.Tool` with a full JSON Schema `input_schema` defining every expected field, its type, allowed enum values, and description. The model is required to call the tool — the response arrives as a pre-parsed `ToolUseBlock.input` object, not raw text.
+
+This approach eliminates JSON parsing errors, hallucinated keys, and schema drift between the prompt and the downstream load step. The tool definitions live in `src/modules/pipeline/schemas/extraction.schemas.ts` as a `Record<DocumentType, Anthropic.Tool>` — adding a new document type requires only adding a new entry to this map, with no pipeline code changes.
+
+Every schema includes an `extractionConfidence` field (required, `number 0.0–1.0`): the model's self-assessed confidence in the overall extraction quality. This is consumed by the validation step (T2) and drives the confidence threshold logic described in section 5.5.
+
+Example tool definition (Form 1040):
+
+```typescript
+{
+  name: 'extract_form_1040',
+  description: 'Extract financial data from a Form 1040 US Individual Income Tax Return.',
+  input_schema: {
+    type: 'object',
+    properties: {
+      taxpayerName:          { type: 'string' },
+      coTaxpayerName:        { type: 'string' },
+      ssn:                   { type: 'string', description: 'XXX-XX-XXXX' },
+      taxYear:               { type: 'integer' },
+      filingStatus:          { type: 'string', enum: ['single', 'married_filing_jointly', ...] },
+      adjustedGrossIncome:   { type: 'number' },
+      extractionConfidence:  { type: 'number', description: '0.0–1.0' },
+      // ... additional fields
+    },
+    required: ['taxpayerName', 'taxYear', 'adjustedGrossIncome', 'extractionConfidence'],
+  },
+}
+```
 
 ```
-System: [CACHED]
-  You are a financial document extraction specialist.
-  Extract the following fields from this Form 1040 tax return.
-  For each field, return the extracted value and a confidence score (0–1).
-  If a field is not present in the document, return null with confidence 0.
-  Do not infer values — only extract what is explicitly stated.
-
-  Required output schema:
-  {
-    "taxpayer_name":    { "value": string | null, "confidence": number },
-    "co_taxpayer_name": { "value": string | null, "confidence": number },
-    "ssn_masked":       { "value": string | null, "confidence": number },
-    "tax_year":         { "value": number | null, "confidence": number },
-    "filing_status":    { "value": string | null, "confidence": number },
-    "address":          { "value": string | null, "confidence": number },
-    "total_w2_income":  { "value": number | null, "confidence": number },
-    "total_income":     { "value": number | null, "confidence": number },
-    "adjusted_gross_income": { "value": number | null, "confidence": number },
-    "capital_gains":    { "value": number | null, "confidence": number },
-    "additional_income": { "value": number | null, "confidence": number },
-    "extraction_notes": string
-  }
+System:
+  You are a precise mortgage loan data extraction engine.
+  Extract all financially relevant fields from the provided document using the supplied tool.
+  Be thorough and accurate. If a field is not present in the document, omit it entirely.
+  Never hallucinate or infer values that are not explicitly stated in the document.
 
 User:
   [full document — text string or base64 PDF]
 ```
 
-The system prompt is marked for caching at the boundary before the user message. Subsequent extractions of the same document type hit the cache, reducing the cost of the static system prompt by 90%.
+### 5.5 Confidence Scoring and Validation
 
-### 5.5 Confidence Scoring and Field-Level Validation
+Every tool schema includes a required `extractionConfidence` field (0.0–1.0) that the model populates with its self-assessed confidence in the overall extraction quality. This is the primary signal for the deterministic validation step (T2).
 
-Every extracted field carries a `confidence` score (0–1) returned by the model alongside the value. This score reflects the model's certainty that the value was correctly read from the document.
-
-Fields are handled by the validation step (T2) according to confidence thresholds:
+The validation step (T2) applies the following thresholds:
 
 | Confidence | Action |
 |---|---|
 | `>= 0.90` | Accepted, stored as-is |
-| `0.75 – 0.89` | Accepted, flagged with `needs_review: true` in the borrower record |
-| `< 0.75` | Stored with the value but prominently flagged in the lender dashboard for manual verification |
-| `null` / `0` | Field absent from document — stored as null, not flagged as an error |
+| `0.75 – 0.89` | Accepted, flagged `REVIEW_EXTRACTION_CONFIDENCE` in `_validationFlags` |
+| `< 0.75` | Flagged `LOW_EXTRACTION_CONFIDENCE` — sets `BorrowerFlag.LOW_EXTRACTION_CONFIDENCE` on the borrower profile, surfaced to lender |
+| Empty extraction | Flagged `EMPTY_EXTRACTION` regardless of confidence |
 
-This approach preserves all extracted data. Nothing is silently discarded. The lender sees exactly what was found and how confident the system is in each value, with a direct link to the source document.
+Classification confidence (from E2) is validated independently with the same thresholds and stored as `classificationConfidence` on the document record.
+
+All extracted data is preserved regardless of confidence — nothing is silently discarded. The lender sees exactly what was extracted and at what confidence, with a direct link to the source document.
+
+**Production extension:** per-field confidence (wrapping each field as `{ value, confidence }`) can be added to individual schema properties as the evaluation loop matures. The current top-level `extractionConfidence` is the minimum viable signal for the validation step and the confidence distribution metric (section 9.4).
 
 ### 5.6 Prompt Caching
 
@@ -728,7 +740,7 @@ This section consolidates the most significant design decisions made in this sys
 |---|---|---|
 | **What** | PostgreSQL with a normalized relational schema | MongoDB or DynamoDB with a document-oriented model |
 | **Why chosen** | The output of this system is highly relational: borrowers have many income records, income records reference source documents, documents belong to applications. Foreign keys enforce data integrity across these relationships. Source attribution (every income record points to exactly one document) is a first-class constraint, not an application-level convention. A document store would require manual enforcement of these invariants. |
-| **Cost of this choice** | Schema migrations are required when the extraction schema evolves. JSONB columns on `raw_extraction_json` and `extracted_fields` provide flexibility for per-document-type variation without sacrificing relational structure. |
+| **Cost of this choice** | Schema migrations are required when the extraction schema evolves. JSONB columns on `rawLlmJson` and `extracted_fields` provide flexibility for per-document-type variation without sacrificing relational structure. |
 
 ---
 
@@ -885,7 +897,7 @@ Every significant event in the system is recorded at the database level, not jus
 | Pipeline step started | `documents.status` updated, `documents.last_attempted_at` |
 | Pipeline step completed | `documents.status` advanced |
 | Pipeline step failed | `documents.status = FAILED`, `documents.failed_at_step`, `documents.error_code` |
-| LLM extraction result | `documents.raw_extraction_json` (full LLM response, immutable) |
+| LLM extraction result | `documents.rawLlmJson` (full LLM response, immutable) |
 | Field validation flags | `documents.validation_flags` (array of flag objects) |
 | Borrower record created | `borrowers.created_at`, `borrowers.source_document_id` (first document that created the record) |
 | Income record written | `income_records.source_document_id` on every row |
@@ -899,23 +911,19 @@ This audit trail answers the three questions a lender or operator will ask when 
 
 All personally identifiable information stored in PostgreSQL is encrypted at the field level before it reaches the database. The database stores only ciphertext for PII fields — a full database dump exposes no readable personal data without the application encryption key.
 
-**Mechanism: TypeORM column transformers**
+**Mechanism: service-layer encryption via `EncryptionService`**
 
-Encryption and decryption are applied transparently at the ORM layer using TypeORM's `ValueTransformer` interface. Each PII column declares a transformer that encrypts on write and decrypts on read. No caller in the application needs to handle encryption manually — it is enforced at the persistence layer.
+Encryption is applied explicitly in the service layer before writes, and decryption before reads. Each call site that handles a PII field invokes `EncryptionService.encrypt()` / `EncryptionService.decrypt()` directly. The entity stores the ciphertext string as-is.
 
 ```typescript
-// Encryption transformer applied to every PII column
-const piiTransformer: ValueTransformer = {
-  to: (plaintext: string | null) => plaintext ? encrypt(plaintext) : null,
-  from: (ciphertext: string | null) => ciphertext ? decrypt(ciphertext) : null,
-};
-
-@Column({ transformer: piiTransformer })
-name_first: string;
-
-@Column({ transformer: piiTransformer })
-ssn_masked: string;
+// EncryptionService — injected via NestJS DI
+profile.ssn = this.encryption.encrypt(extracted['ssn'] as string);
+record.accountNumber = this.encryption.encrypt(rawAccountNumber);
 ```
+
+TypeORM column `ValueTransformer` was considered but not used. Transformers are plain static objects defined at decoration time — they execute outside the NestJS DI context and cannot inject `EncryptionService`, which holds the encryption key via `ConfigService`. Workarounds (module-level singletons, static key assignment) exist but break the DI model and make unit testing harder.
+
+**Production path:** replace service-layer calls with a TypeORM `@EventSubscriber` — it hooks into `beforeInsert`, `beforeUpdate`, and `afterLoad` entity lifecycle events, has full access to the DI container, and enforces encryption transparently without requiring every call site to remember to encrypt. This is the correct long-term architecture; service-layer encryption is the pragmatic starting point.
 
 **Algorithm: AES-256-GCM**
 
@@ -940,7 +948,7 @@ AES-256-GCM (Galois/Counter Mode) provides both confidentiality and integrity �
 
 Income amounts, balances, dates, and tax years are stored in plaintext. These fields are required for range queries and aggregations (e.g., filter by income year, sort by balance). Encrypting them would require decrypting every row in memory before filtering — incompatible with SQL-level queries. These fields carry financial sensitivity but not direct personal identifiability on their own.
 
-The `raw_extraction_json` column on the `documents` table may contain PII embedded in the LLM response. This column is encrypted in full as a JSONB blob using the same AES-256-GCM transformer.
+The `rawLlmJson` column on the `documents` table may contain PII embedded in the LLM response. This column is encrypted in full as a JSONB blob using the same AES-256-GCM transformer.
 
 **Encryption does not substitute for access control.** In production, database access is restricted to the application service account. Direct developer access to the production database requires explicit approval and is logged. The encryption layer protects against data exposure from DB backups, snapshots, and misconfigured read replicas.
 
@@ -969,7 +977,7 @@ const PII_FIELDS = [
 // Any object key matching this list → value replaced with '[REDACTED]'
 ```
 
-Raw LLM responses (`raw_extraction_json`) are never logged. The logger treats any field containing `raw_extraction` as a PII-adjacent payload and replaces the value with `[LLM-RESPONSE-REDACTED]` regardless of key name.
+Raw LLM responses (`rawLlmJson`) are never logged. The logger treats any field containing `raw_extraction` as a PII-adjacent payload and replaces the value with `[LLM-RESPONSE-REDACTED]` regardless of key name.
 
 This means application logs are safe to forward to third-party log aggregators (Datadog, CloudWatch, Papertrail) without PII exposure — a requirement in any compliance-conscious deployment.
 
