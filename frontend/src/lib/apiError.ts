@@ -5,7 +5,7 @@
 export const API_ERROR_MESSAGES: Record<string, string> = {
   // Applications
   APPLICATION_EXISTS:
-    'An application for this borrower already exists. Check the dashboard for the existing one.',
+    'An application for this borrower already exists.',
   APPLICATION_NOT_FOUND:
     'This application could not be found. It may have been deleted.',
 

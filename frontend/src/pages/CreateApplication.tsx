@@ -17,7 +17,7 @@ function inputClass(hasError: boolean) {
   }`;
 }
 
-type FieldErrors = Partial<Record<'borrowerName' | 'borrowerEmail' | 'requestedAmount', string>>;
+type FieldErrors = Partial<Record<'borrowerName' | 'borrowerEmail' | 'requestedAmount' | 'minDocumentCount', string>>;
 
 type ActionState =
   | { status: 'idle' }
@@ -38,6 +38,10 @@ function validate(formData: FormData): FieldErrors {
   }
   if (!formData.get('requestedAmount') || amount <= 0) {
     errors.requestedAmount = 'Enter a loan amount greater than 0.';
+  }
+  const minDocs = Number(formData.get('minDocumentCount'));
+  if (formData.get('minDocumentCount') && (minDocs < 1 || minDocs > 50 || !Number.isInteger(minDocs))) {
+    errors.minDocumentCount = 'Must be a whole number between 1 and 50.';
   }
   return errors;
 }
@@ -66,11 +70,13 @@ export function CreateApplication() {
       if (Object.keys(errors).length > 0) return { status: 'fieldError', errors };
 
       try {
+        const minDocumentCount = Number(formData.get('minDocumentCount'));
         const app = await createApplication({
           borrowerName: (formData.get('borrowerName') as string).trim(),
           borrowerEmail: (formData.get('borrowerEmail') as string).trim(),
           requestedAmount: Number(formData.get('requestedAmount')),
           notes: (formData.get('notes') as string).trim() || undefined,
+          minDocumentCount: minDocumentCount > 0 ? minDocumentCount : undefined,
         }).unwrap();
 
         dispatch(showToast({ type: 'success', message: `Application created for ${app.borrowerName ?? app.borrowerEmail}` }));
@@ -142,6 +148,25 @@ export function CreateApplication() {
             />
           </div>
           {fe.requestedAmount && <FieldError message={fe.requestedAmount} />}
+        </div>
+
+        <div>
+          <label className={labelClass}>
+            Required Documents{' '}
+            <span className="text-slate-400 normal-case font-normal tracking-normal">(optional)</span>
+          </label>
+          <input
+            type="number"
+            name="minDocumentCount"
+            placeholder="e.g. 5"
+            min={1}
+            max={50}
+            className={inputClass(!!fe.minDocumentCount)}
+          />
+          <p className="text-xs text-slate-400 mt-1">
+            Minimum number of documents the borrower must submit before the application can complete.
+          </p>
+          {fe.minDocumentCount && <FieldError message={fe.minDocumentCount} />}
         </div>
 
         <div>

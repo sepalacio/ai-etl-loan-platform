@@ -1,16 +1,8 @@
 import { useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useApplication } from '../hooks/useApplication';
-import type { BorrowerProfile } from '../types/api';
 import { StatusBadge } from '../components/StatusBadge';
-
-const FLAG_LABELS: Record<string, string> = {
-  JOINT_APPLICATION_DETECTED: 'Joint application detected — co-taxpayer name has been populated',
-  ADDRESS_DISCREPANCY: 'Conflicting addresses found across submitted documents',
-  INCOME_VARIANCE: 'Income amounts vary across documents — manual review recommended',
-  LOW_EXTRACTION_CONFIDENCE: 'Low AI extraction confidence on one or more documents',
-  MISSING_SSN: 'SSN was not found in any submitted document',
-};
+import { useLazyGetDocumentDownloadUrlQuery } from '../store/api';
 
 function fmt(amount: number | undefined | null) {
   if (amount == null) return '—';
@@ -21,99 +13,28 @@ function SectionHeader({ title }: { title: string }) {
   return <h2 className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-4">{title}</h2>;
 }
 
-function Field({ label, value }: { label: string; value: React.ReactNode }) {
-  return (
-    <div>
-      <p className="text-xs text-slate-400 mb-0.5">{label}</p>
-      <p className="text-sm font-medium text-slate-900">{value}</p>
-    </div>
-  );
-}
-
-function BorrowerProfileSection({ profile }: { profile: BorrowerProfile }) {
-  return (
-    <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
-      <SectionHeader title="Borrower Profile" />
-
-      <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-8 gap-y-5 mb-6">
-        <Field label="Full Name" value={profile.fullName ?? '—'} />
-        <Field label="Current Address" value={profile.currentAddress ?? '—'} />
-        <Field label="Joint Application" value={profile.isJointApplication ? 'Yes' : 'No'} />
-        <Field label="Total Annual Income" value={<span className="text-primary-700">{fmt(profile.totalAnnualIncome)}</span>} />
-        <Field label="Total Assets" value={<span className="text-primary-700">{fmt(profile.totalAssets)}</span>} />
-        {profile.coTaxpayerName && <Field label="Co-Taxpayer" value={profile.coTaxpayerName} />}
-      </div>
-
-      {profile.addressDiscrepancies && profile.addressDiscrepancies.length > 0 && (
-        <div className="mb-6 pt-4 border-t border-slate-100">
-          <p className="text-xs font-medium text-slate-500 mb-2">Address Discrepancies</p>
-          <ul className="space-y-1">
-            {profile.addressDiscrepancies.map((d, i) => (
-              <li key={i} className="text-xs text-slate-600 bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-lg">{d}</li>
-            ))}
-          </ul>
-        </div>
-      )}
-
-      {profile.incomeRecords && profile.incomeRecords.length > 0 && (
-        <div className="mb-6 pt-4 border-t border-slate-100">
-          <p className="text-xs font-medium text-slate-500 mb-3">Income Records</p>
-          <table className="w-full text-xs">
-            <thead>
-              <tr className="text-left text-slate-400 border-b border-slate-100">
-                <th className="pb-2 font-medium">Type</th>
-                <th className="pb-2 font-medium">Employer</th>
-                <th className="pb-2 font-medium text-right">Annual</th>
-                <th className="pb-2 font-medium text-right">YTD</th>
-                <th className="pb-2 font-medium text-right">Tax Year</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-50">
-              {profile.incomeRecords.map((r) => (
-                <tr key={r.id}>
-                  <td className="py-2 text-slate-500">{r.incomeType}</td>
-                  <td className="py-2 text-slate-700">{r.employer ?? '—'}</td>
-                  <td className="py-2 text-slate-900 font-semibold text-right tabular-nums">{fmt(r.annualAmount)}</td>
-                  <td className="py-2 text-slate-600 text-right tabular-nums">{r.ytdAmount != null ? fmt(r.ytdAmount) : '—'}</td>
-                  <td className="py-2 text-slate-500 text-right tabular-nums">{r.taxYear ?? '—'}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-
-      {profile.accountRecords && profile.accountRecords.length > 0 && (
-        <div className="pt-4 border-t border-slate-100">
-          <p className="text-xs font-medium text-slate-500 mb-3">Account Records</p>
-          <table className="w-full text-xs">
-            <thead>
-              <tr className="text-left text-slate-400 border-b border-slate-100">
-                <th className="pb-2 font-medium">Institution</th>
-                <th className="pb-2 font-medium">Type</th>
-                <th className="pb-2 font-medium text-right">Balance</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-50">
-              {profile.accountRecords.map((r) => (
-                <tr key={r.id}>
-                  <td className="py-2 text-slate-700">{r.institution ?? '—'}</td>
-                  <td className="py-2 text-slate-500 capitalize">{r.accountType.toLowerCase()}</td>
-                  <td className="py-2 text-slate-900 font-semibold text-right tabular-nums">{fmt(r.balance)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-    </div>
-  );
-}
-
 export function ApplicationDetail() {
   const { id } = useParams<{ id: string }>();
-  const { application: app, profile, isLoading, error } = useApplication(id);
+  const { application: app, isLoading, isFetching, error, refetch } = useApplication(id);
   const [copied, setCopied] = useState(false);
+  const [downloadingDocId, setDownloadingDocId] = useState<string | null>(null);
+  const [fetchDownloadUrl] = useLazyGetDocumentDownloadUrlQuery();
+
+  const handleDownload = async (docId: string, filename: string) => {
+    if (!id) return;
+    setDownloadingDocId(docId);
+    try {
+      const { data } = await fetchDownloadUrl({ applicationId: id, docId });
+      if (data?.url) {
+        const a = document.createElement('a');
+        a.href = data.url;
+        a.download = filename;
+        a.click();
+      }
+    } finally {
+      setDownloadingDocId(null);
+    }
+  };
 
   const copyLink = () => {
     if (!app) return;
@@ -139,7 +60,9 @@ export function ApplicationDetail() {
   if (!app) return null;
 
   const uploadUrl = `${window.location.origin}/upload/${app.uploadToken}`;
-  const flags = profile?.flags ?? [];
+
+  const totalDocs = app.documents?.length ?? 0;
+  const completeDocs = app.documents?.filter((d) => d.status === 'COMPLETE').length ?? 0;
 
   return (
     <div className="space-y-6">
@@ -160,30 +83,63 @@ export function ApplicationDetail() {
               <span className="font-mono text-xs">{app.id.slice(0, 8)}…</span>
             </p>
           </div>
-          <StatusBadge status={app.status} />
+          <div className="flex items-center gap-2">
+            {app.status !== 'PENDING_UPLOAD' && (
+              <Link
+                to={`/applications/${app.id}/profile`}
+                className="inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg bg-secondary-700 hover:bg-secondary-800 text-white transition-all whitespace-nowrap"
+              >
+                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                </svg>
+                See Profile
+              </Link>
+            )}
+            <button
+              onClick={refetch}
+              disabled={isFetching}
+              className="inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg border border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+            >
+              <svg
+                className={`w-3.5 h-3.5 ${isFetching ? 'animate-spin' : ''}`}
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+              {isFetching ? 'Refreshing…' : 'Refresh'}
+            </button>
+            <StatusBadge status={app.status} />
+          </div>
         </div>
       </div>
 
       {/* Stat cards */}
-      <div className="grid grid-cols-3 gap-4">
-        {[
-          { label: 'Requested Amount', value: fmt(app.requestedAmount), accent: 'border-t-primary-500' },
-          {
-            label: 'Documents Processed',
-            value: `${app.completionPct}%`,
-            accent: app.completionPct === 100 ? 'border-t-primary-500' : 'border-t-amber-400',
-          },
-          {
-            label: 'Created',
-            value: new Date(app.createdAt).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }),
-            accent: 'border-t-slate-300',
-          },
-        ].map(({ label, value, accent }) => (
-          <div key={label} className={`bg-white rounded-xl border border-slate-200 shadow-sm p-5 border-t-2 ${accent}`}>
-            <p className="text-xs font-medium text-slate-500 uppercase tracking-wide mb-2">{label}</p>
-            <p className="text-xl font-semibold text-slate-900">{value}</p>
-          </div>
-        ))}
+      <div className="grid grid-cols-4 gap-4">
+        <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5 border-t-2 border-t-primary-500">
+          <p className="text-xs font-medium text-slate-500 uppercase tracking-wide mb-2">Requested Amount</p>
+          <p className="text-xl font-semibold text-slate-900">{fmt(app.requestedAmount)}</p>
+        </div>
+        <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5 border-t-2 border-t-amber-400">
+          <p className="text-xs font-medium text-slate-500 uppercase tracking-wide mb-2">Docs Uploaded</p>
+          <p className="text-xl font-semibold text-slate-900">{totalDocs === 0 ? '—' : totalDocs}</p>
+        </div>
+        <div className={`bg-white rounded-xl border border-slate-200 shadow-sm p-5 border-t-2 ${completeDocs === totalDocs && totalDocs > 0 ? 'border-t-primary-500' : 'border-t-slate-300'}`}>
+          <p className="text-xs font-medium text-slate-500 uppercase tracking-wide mb-2">Docs Processed</p>
+          <p className="text-xl font-semibold text-slate-900">
+            {totalDocs === 0 ? '—' : `${completeDocs} of ${totalDocs}`}
+          </p>
+          {app.minDocumentCount > 1 && totalDocs < app.minDocumentCount && (
+            <p className="text-xs text-amber-600 mt-1">{app.minDocumentCount - totalDocs} more required</p>
+          )}
+        </div>
+        <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5 border-t-2 border-t-slate-300">
+          <p className="text-xs font-medium text-slate-500 uppercase tracking-wide mb-2">Created</p>
+          <p className="text-xl font-semibold text-slate-900">
+            {new Date(app.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+          </p>
+        </div>
       </div>
 
       {/* Upload link */}
@@ -206,23 +162,6 @@ export function ApplicationDetail() {
           {copied ? 'Copied!' : 'Copy link'}
         </button>
       </div>
-
-      {/* Flags */}
-      {flags.length > 0 && (
-        <div className="space-y-2">
-          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Review Flags</p>
-          {flags.map((flag) => (
-            <div key={flag} className="flex items-start gap-3 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">
-              <svg className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
-              </svg>
-              <span className="text-sm text-amber-800">{FLAG_LABELS[flag] ?? flag}</span>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {profile && <BorrowerProfileSection profile={profile} />}
 
       {/* Documents */}
       {app.documents && app.documents.length > 0 && (
@@ -252,11 +191,28 @@ export function ApplicationDetail() {
                     )}
                   </div>
                 </div>
-                <div className="flex items-center gap-4 shrink-0 ml-4">
+                <div className="flex items-center gap-3 shrink-0 ml-4">
                   {doc.classificationConfidence != null && (
                     <span className="text-xs text-slate-400 tabular-nums">{Math.round(doc.classificationConfidence * 100)}% conf.</span>
                   )}
                   <StatusBadge status={doc.status} />
+                  <button
+                    onClick={() => handleDownload(doc.id, doc.originalFilename)}
+                    disabled={downloadingDocId === doc.id}
+                    title="Download original file"
+                    className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 disabled:opacity-40 transition-all"
+                  >
+                    {downloadingDocId === doc.id ? (
+                      <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
+                      </svg>
+                    ) : (
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                      </svg>
+                    )}
+                  </button>
                 </div>
               </div>
             ))}

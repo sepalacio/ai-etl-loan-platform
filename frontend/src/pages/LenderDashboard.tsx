@@ -78,12 +78,41 @@ export function LenderDashboard() {
       )}
 
       {isLoading && (
-        <div className="flex items-center gap-2 text-slate-500 text-sm py-12 justify-center">
-          <svg className="animate-spin w-4 h-4" viewBox="0 0 24 24" fill="none">
-            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
-          </svg>
-          Loading applications…
+        <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+          {/* Skeleton stat cards */}
+          <div className="grid grid-cols-4 gap-4 p-5 border-b border-slate-100">
+            {[...Array(4)].map((_, i) => (
+              <div key={i} className="h-16 rounded-lg bg-slate-100 animate-pulse" />
+            ))}
+          </div>
+          {/* Skeleton table rows */}
+          <table className="w-full">
+            <tbody className="divide-y divide-slate-100">
+              {[...Array(5)].map((_, i) => (
+                <tr key={i}>
+                  <td className="px-5 py-4 w-48">
+                    <div className="h-3.5 rounded bg-slate-100 animate-pulse mb-1.5 w-32" />
+                    <div className="h-2.5 rounded bg-slate-100 animate-pulse w-24" style={{ animationDelay: `${i * 40}ms` }} />
+                  </td>
+                  <td className="px-5 py-4">
+                    <div className="h-3.5 rounded bg-slate-100 animate-pulse w-20" style={{ animationDelay: `${i * 40 + 20}ms` }} />
+                  </td>
+                  <td className="px-5 py-4">
+                    <div className="h-5 rounded-full bg-slate-100 animate-pulse w-20" style={{ animationDelay: `${i * 40 + 40}ms` }} />
+                  </td>
+                  <td className="px-5 py-4">
+                    <div className="h-1.5 rounded-full bg-slate-100 animate-pulse w-24" style={{ animationDelay: `${i * 40 + 60}ms` }} />
+                  </td>
+                  <td className="px-5 py-4">
+                    <div className="h-3 rounded bg-slate-100 animate-pulse w-16" style={{ animationDelay: `${i * 40 + 80}ms` }} />
+                  </td>
+                  <td className="px-5 py-4 w-10">
+                    <div className="h-3 rounded bg-slate-100 animate-pulse w-8 ml-auto" />
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       )}
 
@@ -137,17 +166,33 @@ export function LenderDashboard() {
                     <StatusBadge status={app.status} />
                   </td>
                   <td className="px-5 py-4">
-                    <div className="flex items-center gap-2.5">
-                      <AnimatedBar pct={app.completionPct} />
-                      <span className="text-slate-500 text-xs tabular-nums w-7">{app.completionPct}%</span>
-                    </div>
+                    {(() => {
+                      const total = app.documents?.length ?? 0;
+                      const complete = app.documents?.filter((d) => d.status === 'COMPLETE').length ?? 0;
+                      const pct = total > 0 ? Math.round((complete / total) * 100) : 0;
+                      return (
+                        <div className="flex items-center gap-2.5">
+                          <AnimatedBar pct={pct} />
+                          <span className="text-slate-500 text-xs tabular-nums whitespace-nowrap">
+                            {total === 0 ? '—' : `${complete} / ${total}`}
+                          </span>
+                        </div>
+                      );
+                    })()}
                   </td>
                   <td className="px-5 py-4 text-slate-400 text-xs tabular-nums">
                     {new Date(app.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                   </td>
                   <td className="px-5 py-4 text-right">
-                    <Link to={`/applications/${app.id}`} className="text-primary-700 hover:text-primary-900 text-xs font-medium">
-                      View
+                    <Link
+                      to={`/applications/${app.id}`}
+                      className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-600 hover:text-slate-900 border border-slate-200 bg-slate-50 hover:bg-slate-100 px-2.5 py-1.5 rounded-lg transition-all whitespace-nowrap"
+                    >
+                      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                      </svg>
+                      View Application
                     </Link>
                   </td>
                 </tr>

@@ -29,7 +29,8 @@ export type BorrowerFlag =
   | 'ADDRESS_DISCREPANCY'
   | 'INCOME_VARIANCE'
   | 'LOW_EXTRACTION_CONFIDENCE'
-  | 'MISSING_SSN';
+  | 'MISSING_SSN'
+  | 'NAME_DISCREPANCY';
 
 export interface LoanDocument {
   id: string;
@@ -56,6 +57,7 @@ export interface LoanApplication {
   notes?: string;
   status: ApplicationStatus;
   completionPct: number;
+  minDocumentCount: number;
   documents?: LoanDocument[];
   createdAt: string;
   updatedAt: string;
@@ -79,6 +81,7 @@ export interface AccountRecord {
   sourceDocumentId: string;
   institution?: string;
   accountType: string;
+  accountNumber?: string;
   balance: number;
   createdAt: string;
 }
@@ -105,4 +108,5 @@ export interface CreateApplicationDto {
   borrowerEmail: string;
   requestedAmount: number;
   notes?: string;
+  minDocumentCount?: number;
 }

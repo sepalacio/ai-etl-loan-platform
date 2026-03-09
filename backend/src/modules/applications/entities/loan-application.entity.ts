@@ -52,6 +52,12 @@ export class LoanApplication {
   })
   status!: ApplicationStatus;
 
+  /** Minimum number of documents the lender requires before the application
+   *  can be automatically marked COMPLETE.  Defaults to 1 (any single completed
+   *  document triggers completion) but should be set by the lender at creation. */
+  @Column({ type: 'int', default: 5 })
+  minDocumentCount!: number;
+
   /** Ratio of COMPLETE documents to total expected types (0.0 – 1.0).
    *  Recalculated at pipeline step L2 after each document completes. */
   @Column({ type: 'float', default: 0 })

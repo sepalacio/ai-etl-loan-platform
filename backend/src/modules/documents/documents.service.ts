@@ -44,13 +44,11 @@ export class DocumentsService {
   ): Promise<IngestResult[]> {
     const application = await this.applicationsService.findByToken(token);
 
-    if (
-      application.status === ApplicationStatus.COMPLETE ||
-      application.status === ApplicationStatus.FAILED
-    ) {
+    if (application.status === ApplicationStatus.COMPLETE) {
       throw new UnprocessableEntityException({
         error: 'APPLICATION_CLOSED',
-        message: `Application is already ${application.status.toLowerCase()} and no longer accepts uploads`,
+        message:
+          'Application is already complete and no longer accepts uploads',
       });
     }
 
@@ -132,6 +130,16 @@ export class DocumentsService {
       where: { applicationId: application.id, contentHash },
     });
     if (existing) {
+      if (existing.status === DocumentStatus.FAILED) {
+        // Reset and reprocess rather than rejecting — borrower is re-submitting a failed doc
+        existing.status = DocumentStatus.PENDING;
+        existing.failureReason = undefined;
+        existing.failedAtStep = undefined;
+        existing.retryCount = 0;
+        existing.lastAttemptedAt = undefined as unknown as Date;
+        await this.docRepo.save(existing);
+        return existing;
+      }
       throw new DuplicateDocumentException(existing.id);
     }
 

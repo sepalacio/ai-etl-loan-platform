@@ -33,6 +33,9 @@ export const api = createApi({
       query: (body) => ({ url: '/applications', method: 'POST', body }),
       invalidatesTags: ['Application'],
     }),
+    getDocumentDownloadUrl: builder.query<{ url: string }, { applicationId: string; docId: string }>({
+      query: ({ applicationId, docId }) => `/applications/${applicationId}/documents/${docId}/download`,
+    }),
   }),
 });
 
@@ -41,4 +44,5 @@ export const {
   useGetApplicationQuery,
   useGetBorrowerProfileQuery,
   useCreateApplicationMutation,
+  useLazyGetDocumentDownloadUrlQuery,
 } = api;

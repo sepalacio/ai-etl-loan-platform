@@ -5,6 +5,7 @@ import {
   PutObjectCommand,
   GetObjectCommand,
 } from '@aws-sdk/client-s3';
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { Readable } from 'stream';
 
 @Injectable()
@@ -34,6 +35,20 @@ export class S3Service {
         ServerSideEncryption: 'AES256',
       }),
     );
+  }
+
+  async getSignedDownloadUrl(
+    key: string,
+    filename: string,
+    expiresInSeconds = 300,
+  ): Promise<string> {
+    const command = new GetObjectCommand({
+      Bucket: this.bucket,
+      Key: key,
+      ResponseContentDisposition: `attachment; filename="${filename}"`,
+      ResponseContentType: 'application/pdf',
+    });
+    return getSignedUrl(this.client, command, { expiresIn: expiresInSeconds });
   }
 
   async download(key: string): Promise<Buffer> {

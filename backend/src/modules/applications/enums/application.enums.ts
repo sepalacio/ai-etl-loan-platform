@@ -16,4 +16,6 @@ export enum BorrowerFlag {
   LOW_EXTRACTION_CONFIDENCE = 'LOW_EXTRACTION_CONFIDENCE',
   /** SSN was not found in any submitted document */
   MISSING_SSN = 'MISSING_SSN',
+  /** Borrower name differs across documents — possible mixed-person upload */
+  NAME_DISCREPANCY = 'NAME_DISCREPANCY',
 }

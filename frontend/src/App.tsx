@@ -19,6 +19,9 @@ const ApplicationDetail = lazy(() =>
 const BorrowerUpload = lazy(() =>
   import('./pages/BorrowerUpload').then((m) => ({ default: m.BorrowerUpload })),
 );
+const BorrowerProfilePage = lazy(() =>
+  import('./pages/BorrowerProfilePage').then((m) => ({ default: m.BorrowerProfilePage })),
+);
 
 function LenderApp() {
   const email = useAppSelector(selectLenderEmail);
@@ -30,6 +33,7 @@ function LenderApp() {
           <Route index element={<LenderDashboard />} />
           <Route path="applications/new" element={<CreateApplication />} />
           <Route path="applications/:id" element={<ApplicationDetail />} />
+          <Route path="applications/:id/profile" element={<BorrowerProfilePage />} />
         </Route>
       </Routes>
     </ErrorBoundary>

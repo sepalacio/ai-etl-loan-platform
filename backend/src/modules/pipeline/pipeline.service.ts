@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { PDFParse } from 'pdf-parse';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { ConfigService } from '@nestjs/config';
@@ -25,11 +26,6 @@ import {
 } from './prompts/pipeline.prompts';
 import { VISION_TYPES } from './types/pipeline.types';
 import { EXTRACTION_TOOLS } from './schemas/extraction.schemas';
-
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const pdfParse = require('pdf-parse') as (
-  buf: Buffer,
-) => Promise<{ text: string }>;
 
 @Injectable()
 export class PipelineService {
@@ -71,6 +67,7 @@ export class PipelineService {
       await this.stepResolveAndLoad(doc);
 
       doc.status = DocumentStatus.COMPLETE;
+      doc.failedAtStep = undefined;
       await this.docRepo.save(doc);
       await this.updateCompletionPct(doc.applicationId);
       this.logger.log(
@@ -100,7 +97,8 @@ export class PipelineService {
     const fileBuffer = await this.s3.download(doc.s3Key);
     let textSample = '';
     try {
-      const parsed = await pdfParse(fileBuffer);
+      const parser = new PDFParse({ data: fileBuffer });
+      const parsed = await parser.getText();
       textSample = parsed.text.substring(0, 2000);
     } catch {
       textSample = '[binary PDF - vision required]';
@@ -124,7 +122,11 @@ export class PipelineService {
     });
 
     const raw = (response.content[0] as { type: string; text: string }).text;
-    const result = JSON.parse(raw) as {
+    const cleaned = raw
+      .replace(/^```(?:json)?\s*/i, '')
+      .replace(/\s*```\s*$/, '')
+      .trim();
+    const result = JSON.parse(cleaned) as {
       documentType: string;
       confidence: number;
     };
@@ -150,7 +152,8 @@ export class PipelineService {
 
     if (doc.parsePath === ParsePath.TEXT) {
       const fileBuffer = await this.s3.download(doc.s3Key);
-      const parsed = await pdfParse(fileBuffer);
+      const parser = new PDFParse({ data: fileBuffer });
+      const parsed = await parser.getText();
       doc.rawText = parsed.text;
     }
     // VISION path: raw bytes passed directly to Anthropic in T1 step
@@ -319,11 +322,20 @@ export class PipelineService {
       extracted['accountHolderName'] ??
       extracted['buyerName'];
     if (!profile.fullName && borrowerName) {
-      profile.fullName = borrowerName as string;
+      profile.fullName = this.encryption.encrypt(borrowerName as string);
+    } else if (profile.fullName && borrowerName) {
+      const existing = this.encryption.decrypt(profile.fullName);
+      if (existing.toLowerCase() !== (borrowerName as string).toLowerCase()) {
+        if (!profile.flags?.includes(BorrowerFlag.NAME_DISCREPANCY)) {
+          profile.flags = [...(profile.flags ?? []), BorrowerFlag.NAME_DISCREPANCY];
+        }
+      }
     }
 
     if (!profile.coTaxpayerName && extracted['coTaxpayerName']) {
-      profile.coTaxpayerName = extracted['coTaxpayerName'] as string;
+      profile.coTaxpayerName = this.encryption.encrypt(
+        extracted['coTaxpayerName'] as string,
+      );
     }
 
     if (!profile.ssn && extracted['ssn']) {
@@ -337,8 +349,8 @@ export class PipelineService {
     if (extracted['address']) {
       const addr = extracted['address'] as string;
       if (!profile.currentAddress) {
-        profile.currentAddress = addr;
-      } else if (profile.currentAddress !== addr) {
+        profile.currentAddress = this.encryption.encrypt(addr);
+      } else if (this.encryption.decrypt(profile.currentAddress) !== addr) {
         profile.addressDiscrepancies = [
           ...(profile.addressDiscrepancies ?? []),
           `${doc.documentType}: ${addr}`,
@@ -358,10 +370,12 @@ export class PipelineService {
       extracted['jointFiling'] === true
     ) {
       profile.isJointApplication = true;
-      profile.flags = [
-        ...(profile.flags ?? []),
-        BorrowerFlag.JOINT_APPLICATION_DETECTED,
-      ];
+      if (!profile.flags?.includes(BorrowerFlag.JOINT_APPLICATION_DETECTED)) {
+        profile.flags = [
+          ...(profile.flags ?? []),
+          BorrowerFlag.JOINT_APPLICATION_DETECTED,
+        ];
+      }
     }
   }
 
@@ -394,6 +408,9 @@ export class PipelineService {
       annualAmount: amount,
       ytdAmount: ytdAmount ? Number(ytdAmount) : undefined,
       employer,
+      confidence: extracted['extractionConfidence']
+        ? Number(extracted['extractionConfidence'])
+        : undefined,
     });
     await this.incomeRepo.save(record);
 
@@ -417,6 +434,8 @@ export class PipelineService {
     if (!balance) return;
 
     const rawAccountNumber = extracted['accountNumber'] as string | undefined;
+    const periodStart = extracted['statementPeriodStart'] as string | undefined;
+    const periodEnd = extracted['statementPeriodEnd'] as string | undefined;
     const record = this.accountRepo.create({
       borrowerProfileId: profile.id,
       sourceDocumentId: doc.id,
@@ -428,6 +447,12 @@ export class PipelineService {
         ? this.encryption.encrypt(rawAccountNumber)
         : undefined,
       balance,
+      statementPeriodStart: periodStart ? new Date(periodStart) : undefined,
+      statementPeriodEnd: periodEnd ? new Date(periodEnd) : undefined,
+      statementDate: periodEnd ? new Date(periodEnd) : undefined,
+      confidence: extracted['extractionConfidence']
+        ? Number(extracted['extractionConfidence'])
+        : undefined,
     });
     await this.accountRepo.save(record);
 

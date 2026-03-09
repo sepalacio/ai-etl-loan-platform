@@ -6,7 +6,7 @@ export const CLASSIFICATION_SYSTEM_PROMPT = `You are a mortgage loan document cl
 Given raw text or a PDF page, identify the document type from this list:
 ${DOCUMENT_TYPES}.
 
-Respond with JSON only:
+Respond with raw JSON only — no markdown, no code fences, no explanation:
 { "documentType": "<TYPE>", "confidence": <0.0-1.0>, "reasoning": "<one sentence>" }`;
 
 export const EXTRACTION_SYSTEM_PROMPT = `You are a precise mortgage loan data extraction engine.

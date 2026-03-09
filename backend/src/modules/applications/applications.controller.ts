@@ -53,4 +53,13 @@ export class ApplicationsController {
   ) {
     return this.service.getBorrowerProfile(id, lenderEmail);
   }
+
+  @Get(':id/documents/:docId/download')
+  getDocumentDownloadUrl(
+    @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
+    @Param('docId', new ParseUUIDPipe({ version: '4' })) docId: string,
+    @Headers('x-lender-email') lenderEmail: string,
+  ) {
+    return this.service.getDocumentDownloadUrl(id, docId, lenderEmail);
+  }
 }

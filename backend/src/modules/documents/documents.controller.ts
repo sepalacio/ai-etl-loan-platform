@@ -29,7 +29,7 @@ export class DocumentsController {
   @Get('upload/:token')
   async validateToken(@Param('token') token: string) {
     const app = await this.applicationsService.findByToken(token);
-    return { borrowerName: app.borrowerName };
+    return { borrowerName: app.borrowerName, status: app.status };
   }
 
   /**
