@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   Controller,
+  Get,
   HttpCode,
   HttpStatus,
   Param,
@@ -10,10 +11,24 @@ import {
 } from '@nestjs/common';
 import { FilesInterceptor } from '@nestjs/platform-express';
 import { DocumentsService } from './documents.service';
+import { ApplicationsService } from '../applications/applications.service';
 
 @Controller('')
 export class DocumentsController {
-  constructor(private readonly service: DocumentsService) {}
+  constructor(
+    private readonly service: DocumentsService,
+    private readonly applicationsService: ApplicationsService,
+  ) {}
+
+  /**
+   * Validates an upload token and returns basic application info.
+   * Called by the borrower upload page on mount to confirm the token is valid.
+   */
+  @Get('upload/:token')
+  async validateToken(@Param('token') token: string) {
+    const app = await this.applicationsService.findByToken(token);
+    return { borrowerName: app.borrowerName };
+  }
 
   /**
    * Borrower uploads documents via their token-scoped URL.
@@ -25,7 +40,13 @@ export class DocumentsController {
     FilesInterceptor('files', 10, {
       fileFilter: (_req, file, cb) => {
         if (file.mimetype !== 'application/pdf') {
-          cb(new BadRequestException('Only PDF files are accepted'), false);
+          cb(
+            new BadRequestException({
+              error: 'INVALID_FILE_TYPE',
+              message: `File '${file.originalname}' is not a PDF`,
+            }),
+            false,
+          );
         } else {
           cb(null, true);
         }
@@ -38,7 +59,10 @@ export class DocumentsController {
     @UploadedFiles() files: Express.Multer.File[],
   ) {
     if (!files || files.length === 0) {
-      throw new BadRequestException('No files uploaded');
+      throw new BadRequestException({
+        error: 'NO_FILES',
+        message: 'Request contained no files',
+      });
     }
 
     const results = await this.service.ingestFiles(token, files);

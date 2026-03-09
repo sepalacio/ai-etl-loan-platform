@@ -62,7 +62,7 @@ The assignment grants full autonomy over the technology stack. The primary const
 | PDF vision | Anthropic native PDF document API (base64) |
 | LLM — classification | claude-haiku-4-5 |
 | LLM — extraction | claude-sonnet-4-6 |
-| Email | Nodemailer + SMTP |
+| Email | Resend |
 | Frontend | React + Vite + TypeScript |
 | Containerization | Docker + docker-compose |
 
@@ -183,7 +183,7 @@ The organizing entity is the **Application**, not the Document. A loan applicati
 
 In practice, loan document packages are not submitted by lenders — they are collected from borrowers across multiple touchpoints. Modeling this as a two-sided workflow reflects the real operational context, demonstrates understanding of multi-party document coordination (directly relevant to the role), and produces a more meaningful demo than a single-sided upload API.
 
-Email delivery is implemented with Nodemailer (real SMTP). Short URLs are implemented as UUID-scoped routes (`/upload/:token`). Authentication and multi-tenancy are noted as natural extensions in the system design document.
+Email delivery is implemented with Resend (transactional email API). Short URLs are implemented as UUID-scoped routes (`/upload/:token`). Authentication and multi-tenancy are noted as natural extensions in the system design document.
 
 ### Trade-offs
 
@@ -211,7 +211,7 @@ The pipeline consists of eight sequential steps executed per document upon uploa
 | T3 | Resolve | PostgreSQL + TypeORM | Borrower identity matched across documents using name + address + SSN last 4. Existing borrower updated or new borrower created. |
 | L1 | Load | TypeORM | Structured data written to `borrowers`, `income_records`, `account_records`. Every field carries a `source_document_id` for full provenance. |
 | L2 | Status update | NestJS service | Application `completion_pct` recalculated. Status advanced (`pending` → `uploading` → `processing` → `complete`). |
-| L3 | Notify | Nodemailer | Completion notification sent to lender rep when pipeline finishes. |
+| L3 | Notify | Resend | Completion notification sent to lender rep when pipeline finishes. |
 
 ### Rationale
 

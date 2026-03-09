@@ -40,10 +40,10 @@ export function extractionCompleteHtml(params: {
       </table>`
     : `
       <!-- All clear -->
-      <table width="100%" cellpadding="0" cellspacing="0" style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;margin:0 0 28px;">
+      <table width="100%" cellpadding="0" cellspacing="0" style="background:#ecfdf5;border:1px solid #a7f3d0;border-radius:8px;margin:0 0 28px;">
         <tr>
           <td style="padding:14px 20px;">
-            <p style="margin:0;color:#15803d;font-size:13px;font-weight:600;">
+            <p style="margin:0;color:#065f46;font-size:13px;font-weight:600;">
               &#10003;&nbsp; All fields extracted successfully — no issues detected
             </p>
           </td>
@@ -65,10 +65,24 @@ export function extractionCompleteHtml(params: {
 
           <!-- Header -->
           <tr>
-            <td style="background:#14532d;border-radius:8px 8px 0 0;padding:32px 40px;text-align:center;">
-              <div style="display:inline-block;width:48px;height:48px;background:#16a34a;border-radius:50%;line-height:48px;text-align:center;font-size:24px;color:#ffffff;margin-bottom:12px;">&#10003;</div>
-              <p style="margin:0;color:#86efac;font-size:12px;font-weight:600;letter-spacing:2px;text-transform:uppercase;">Extraction Complete</p>
-              <h1 style="margin:8px 0 0;color:#ffffff;font-size:24px;font-weight:700;letter-spacing:-0.5px;">Application Ready for Review</h1>
+            <td style="background:#065f46;border-radius:8px 8px 0 0;padding:32px 40px;text-align:center;">
+              <!-- Logo -->
+              <table cellpadding="0" cellspacing="0" style="margin:0 auto 16px;">
+                <tr>
+                  <td style="vertical-align:middle;padding-right:10px;">
+                    <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+                      <rect width="32" height="32" rx="8" fill="#059669"/>
+                      <rect x="8" y="9" width="16" height="2" rx="1" fill="white"/>
+                      <rect x="8" y="14" width="11" height="2" rx="1" fill="rgba(255,255,255,0.65)"/>
+                      <rect x="8" y="19" width="14" height="2" rx="1" fill="rgba(255,255,255,0.65)"/>
+                    </svg>
+                  </td>
+                  <td style="vertical-align:middle;">
+                    <span style="color:#ffffff;font-size:20px;font-weight:700;letter-spacing:-0.5px;">LoanPro</span>
+                  </td>
+                </tr>
+              </table>
+              <h1 style="margin:0;color:#ffffff;font-size:24px;font-weight:700;letter-spacing:-0.5px;">Application Ready for Review</h1>
             </td>
           </tr>
 
@@ -102,7 +116,7 @@ export function extractionCompleteHtml(params: {
                 <tr>
                   <td align="center">
                     <a href="${reviewUrl}"
-                       style="display:inline-block;background:#15803d;color:#ffffff;font-size:16px;font-weight:600;text-decoration:none;padding:14px 36px;border-radius:8px;letter-spacing:0.3px;">
+                       style="display:inline-block;background:#047857;color:#ffffff;font-size:16px;font-weight:600;text-decoration:none;padding:14px 36px;border-radius:8px;letter-spacing:0.3px;">
                       Review Application &rarr;
                     </a>
                   </td>

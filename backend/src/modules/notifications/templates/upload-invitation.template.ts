@@ -25,9 +25,24 @@ export function uploadInvitationHtml(params: {
 
           <!-- Header -->
           <tr>
-            <td style="background:#1e40af;border-radius:8px 8px 0 0;padding:32px 40px;text-align:center;">
-              <p style="margin:0;color:#93c5fd;font-size:12px;font-weight:600;letter-spacing:2px;text-transform:uppercase;">Secure Document Portal</p>
-              <h1 style="margin:8px 0 0;color:#ffffff;font-size:24px;font-weight:700;letter-spacing:-0.5px;">Action Required</h1>
+            <td style="background:#065f46;border-radius:8px 8px 0 0;padding:32px 40px;text-align:center;">
+              <!-- Logo -->
+              <table cellpadding="0" cellspacing="0" style="margin:0 auto 16px;">
+                <tr>
+                  <td style="vertical-align:middle;padding-right:10px;">
+                    <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+                      <rect width="32" height="32" rx="8" fill="#059669"/>
+                      <rect x="8" y="9" width="16" height="2" rx="1" fill="white"/>
+                      <rect x="8" y="14" width="11" height="2" rx="1" fill="rgba(255,255,255,0.65)"/>
+                      <rect x="8" y="19" width="14" height="2" rx="1" fill="rgba(255,255,255,0.65)"/>
+                    </svg>
+                  </td>
+                  <td style="vertical-align:middle;">
+                    <span style="color:#ffffff;font-size:20px;font-weight:700;letter-spacing:-0.5px;">LoanPro</span>
+                  </td>
+                </tr>
+              </table>
+              <h1 style="margin:0;color:#ffffff;font-size:24px;font-weight:700;letter-spacing:-0.5px;">Action Required</h1>
             </td>
           </tr>
 
@@ -60,7 +75,7 @@ export function uploadInvitationHtml(params: {
                 <tr>
                   <td align="center">
                     <a href="${uploadUrl}"
-                       style="display:inline-block;background:#1e40af;color:#ffffff;font-size:16px;font-weight:600;text-decoration:none;padding:14px 36px;border-radius:8px;letter-spacing:0.3px;">
+                       style="display:inline-block;background:#047857;color:#ffffff;font-size:16px;font-weight:600;text-decoration:none;padding:14px 36px;border-radius:8px;letter-spacing:0.3px;">
                       Upload My Documents &rarr;
                     </a>
                   </td>
@@ -68,10 +83,10 @@ export function uploadInvitationHtml(params: {
               </table>
 
               <!-- Security notice -->
-              <table width="100%" cellpadding="0" cellspacing="0" style="background:#eff6ff;border-left:4px solid #3b82f6;border-radius:0 6px 6px 0;margin:0 0 28px;">
+              <table width="100%" cellpadding="0" cellspacing="0" style="background:#ecfdf5;border-left:4px solid #059669;border-radius:0 6px 6px 0;margin:0 0 28px;">
                 <tr>
                   <td style="padding:14px 18px;">
-                    <p style="margin:0;color:#1e40af;font-size:13px;line-height:1.5;">
+                    <p style="margin:0;color:#065f46;font-size:13px;line-height:1.5;">
                       <strong>Security notice:</strong> This link is unique to your application and expires after use. Never share it with anyone. Your lender will never ask for your login credentials via email.
                     </p>
                   </td>

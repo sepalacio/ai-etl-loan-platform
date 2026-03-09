@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { v4 as uuidv4 } from 'uuid';
@@ -27,6 +31,16 @@ export class ApplicationsService {
     lenderEmail: string,
     dto: CreateApplicationDto,
   ): Promise<LoanApplication> {
+    const existing = await this.appRepo.findOne({
+      where: { lenderEmail, borrowerEmail: dto.borrowerEmail },
+    });
+    if (existing) {
+      throw new ConflictException({
+        error: 'APPLICATION_EXISTS',
+        message: `There is already an application for ${dto.borrowerEmail}`,
+      });
+    }
+
     const uploadToken = uuidv4();
     const application = this.appRepo.create({
       lenderEmail,
@@ -62,7 +76,11 @@ export class ApplicationsService {
       where: { id, lenderEmail },
       relations: ['documents'],
     });
-    if (!app) throw new NotFoundException('Application not found');
+    if (!app)
+      throw new NotFoundException({
+        error: 'APPLICATION_NOT_FOUND',
+        message: 'No application found for the given id',
+      });
     return app;
   }
 
@@ -71,7 +89,11 @@ export class ApplicationsService {
       where: { uploadToken: token },
       relations: ['documents'],
     });
-    if (!app) throw new NotFoundException('Invalid or expired upload token');
+    if (!app)
+      throw new NotFoundException({
+        error: 'INVALID_TOKEN',
+        message: 'Upload token does not match any active application',
+      });
     return app;
   }
 
@@ -80,7 +102,10 @@ export class ApplicationsService {
     lenderEmail: string,
   ): Promise<BorrowerProfile | null> {
     const app = await this.findOne(applicationId, lenderEmail);
-    return this.profileRepo.findOne({ where: { applicationId: app.id } });
+    return this.profileRepo.findOne({
+      where: { applicationId: app.id },
+      relations: ['incomeRecords', 'accountRecords'],
+    });
   }
 
   async updateStatus(applicationId: string): Promise<void> {

@@ -5,12 +5,17 @@ import {
   Index,
   OneToMany,
   PrimaryGeneratedColumn,
+  Unique,
   UpdateDateColumn,
 } from 'typeorm';
 import { ApplicationStatus } from '../enums/application.enums';
 import { Document } from '../../documents/entities/document.entity';
 
 @Entity('loan_applications')
+@Unique('uq_applications_lender_borrower_email', [
+  'lenderEmail',
+  'borrowerEmail',
+])
 export class LoanApplication {
   @PrimaryGeneratedColumn('uuid')
   id!: string;

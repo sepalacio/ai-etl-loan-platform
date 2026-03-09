@@ -29,7 +29,7 @@ Edit `.env` and fill in the required secrets:
 | `AWS_ACCESS_KEY_ID` | AWS credentials for S3 document storage |
 | `AWS_SECRET_ACCESS_KEY` | AWS credentials for S3 document storage |
 | `ANTHROPIC_API_KEY` | Claude API key for document extraction |
-| `SMTP_USER` / `SMTP_PASS` | SMTP credentials (use [Mailtrap](https://mailtrap.io) locally) |
+| `RESEND_API_KEY` | Resend API key — free tier at [resend.com](https://resend.com) (no domain required) |
 | `ENCRYPTION_KEY` | 64-char hex key — generate with `openssl rand -hex 32` |
 
 > Variables with defaults (`PORT`, `DB_HOST`, `API_PREFIX`, etc.) can be left as-is for local development.

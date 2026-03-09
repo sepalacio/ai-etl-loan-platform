@@ -30,8 +30,8 @@ export class GlobalExceptionFilter implements ExceptionFilter {
         message = body;
       } else if (typeof body === 'object' && body !== null) {
         const b = body as Record<string, unknown>;
-        message = (b['message'] as string) ?? message;
         code = (b['error'] as string) ?? code;
+        message = (b['message'] as string) ?? code;
         details = b['details'];
       }
     } else if (exception instanceof Error) {

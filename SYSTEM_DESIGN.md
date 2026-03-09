@@ -43,14 +43,14 @@ graph TB
         T3["T3 · Entity Resolve\nPostgreSQL lookup"]
         L1["L1 · Load\nTypeORM"]
         L2["L2 · Status Update\nApplication progress"]
-        L3["L3 · Notify\nNodemailer"]
+        L3["L3 · Notify\nResend"]
 
         E1 --> E2 --> E3 --> T1 --> T2 --> T3 --> L1 --> L2 --> L3
     end
 
     CLAUDE[("Claude API\nAnthropic")]
     S3[("AWS S3\nFile Storage")]
-    SMTP["SMTP Server\nNodemailer"]
+    RESEND["Resend\nEmail API"]
     PG[("PostgreSQL\nTypeORM")]
 
     LD -->|"HTTPS / REST"| APP
@@ -73,8 +73,8 @@ graph TB
 
     APP --> EML
     L2 --> EML
-    EML --> SMTP
-    SMTP -.->|"upload link email"| BP
+    EML --> RESEND
+    RESEND -.->|"upload link email"| BP
 ```
 
 ### 2.2 Component Descriptions
@@ -87,12 +87,12 @@ graph TB
 | **Documents Module** | NestJS | Accepts file uploads. Computes SHA-256 hash for duplicate detection. Triggers the processing pipeline per document. |
 | **Borrowers Module** | NestJS | Exposes the unified borrower record assembled from all processed documents. |
 | **Query Module** | NestJS | Parameterized query interface over extracted borrower data (filter by income year, account type, document source, etc.). |
-| **Email Module** | NestJS + Nodemailer | Sends the upload link to the borrower on application creation. Sends a completion notification to the lender when all documents are processed. |
+| **Email Module** | NestJS + Resend | Sends the upload link to the borrower on application creation. Sends a completion notification to the lender when all documents are processed. |
 | **Processing Pipeline** | NestJS service | Sequential per-document pipeline: upload → classify → parse → extract → validate → resolve → load → notify. Failure in one document does not block others. |
 | **AWS S3** | AWS SDK v3 | Durable storage for original document files. Decoupled from the processing layer — files written once, never reprocessed. |
 | **Claude API** | Anthropic SDK | Two-model strategy: `claude-haiku-4-5` for document classification, `claude-sonnet-4-6` for structured field extraction. |
 | **PostgreSQL** | TypeORM | Primary data store for all structured entities: applications, documents, borrowers, income records, account records. |
-| **SMTP Server** | Nodemailer | Outbound email delivery for borrower upload links and lender completion notifications. |
+| **Resend** | Resend API | Outbound email delivery for borrower upload links and lender completion notifications. |
 
 ---
 

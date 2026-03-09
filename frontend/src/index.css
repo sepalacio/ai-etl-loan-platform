@@ -1,1 +1,76 @@
 @import "tailwindcss";
+
+/**
+ * Design tokens — update once here to rebrand the entire app.
+ *
+ * primary-*   Emerald green  — primary CTAs, links, key accents
+ * secondary-* Indigo         — secondary actions, info states, welcome toast
+ * nav / nav-* Deep green     — app shell chrome
+ * review-*    Teal           — "In Review" status badge
+ */
+@theme {
+  /* Primary brand scale (emerald) */
+  --color-primary-50:  #ecfdf5;
+  --color-primary-100: #d1fae5;
+  --color-primary-200: #a7f3d0;
+  --color-primary-300: #6ee7b7;
+  --color-primary-500: #10b981;
+  --color-primary-600: #059669;
+  --color-primary-700: #047857;
+  --color-primary-800: #065f46;
+  --color-primary-900: #064e3b;
+
+  /* Secondary brand scale (deep teal — #004E64 as 700) */
+  --color-secondary-50:  #e6f5f8;
+  --color-secondary-100: #c2e8f0;
+  --color-secondary-200: #85d0e2;
+  --color-secondary-500: #0098b8;
+  --color-secondary-600: #007590;
+  --color-secondary-700: #004E64;
+  --color-secondary-800: #003548;
+
+  /* App shell / nav (deep green) */
+  --color-nav:      #052e16;
+  --color-nav-700:  #15803d;
+  --color-nav-800:  #166534;
+  --color-nav-900:  #14532d;
+
+  /* Status: In Review (teal) */
+  --color-review-50:  #f0fdfa;
+  --color-review-500: #14b8a6;
+  --color-review-700: #0f766e;
+}
+
+/* Page / section entrance */
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(0.6rem); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* Dot pulse for in-progress status badges */
+@keyframes status-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50%       { opacity: 0.4; transform: scale(0.75); }
+}
+
+@keyframes slide-in {
+  from { opacity: 0; transform: translateX(1rem); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes shrink {
+  from { transform: scaleX(1); }
+  to   { transform: scaleX(0); }
+}
+
+*, *::before, *::after {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+    'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  background-color: #f8fafc;
+  color: #0f172a;
+}

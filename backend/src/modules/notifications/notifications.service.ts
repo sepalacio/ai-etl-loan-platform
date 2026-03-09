@@ -1,18 +1,6 @@
-/**
- * NotificationsService — transactional email via nodemailer + SMTP.
- *
- * Production note: for a production application, replace nodemailer with a
- * dedicated email delivery platform (e.g. Mailchimp Transactional / Mandrill,
- * SendGrid, Postmark, or AWS SES). These services provide:
- *   - Deliverability infrastructure (SPF/DKIM/DMARC, dedicated IPs)
- *   - Bounce / complaint handling and suppression lists
- *   - Template management and A/B testing
- *   - Open / click tracking and analytics
- *   - Scalable throughput without managing an SMTP relay
- */
-import * as nodemailer from 'nodemailer';
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { Resend } from 'resend';
 import { LoanApplication } from '../applications/entities/loan-application.entity';
 import { BorrowerFlag } from '../applications/enums/application.enums';
 import { AppLogger } from '../../common/logger/app.logger';
@@ -22,27 +10,23 @@ import { extractionCompleteHtml } from './templates/extraction-complete.template
 @Injectable()
 export class NotificationsService {
   private readonly logger = new AppLogger(NotificationsService.name);
-  private transporter: nodemailer.Transporter;
+  private readonly resend: Resend;
+  private readonly from: string;
 
   constructor(private readonly config: ConfigService) {
-    this.transporter = nodemailer.createTransport({
-      host: this.config.get<string>('email.host'),
-      port: this.config.get<number>('email.port'),
-      auth: {
-        user: this.config.get<string>('email.user'),
-        pass: this.config.get<string>('email.pass'),
-      },
-    });
+    this.resend = new Resend(this.config.get<string>('email.resendApiKey'));
+    this.from =
+      this.config.get<string>('email.from') ??
+      'LoanPro <onboarding@resend.dev>';
   }
 
   async sendUploadInvitation(application: LoanApplication): Promise<void> {
     const appUrl = this.config.get<string>('appUrl');
-    const from = this.config.get<string>('email.from');
     const uploadUrl = `${appUrl}/upload/${application.uploadToken}`;
 
     try {
-      await this.transporter.sendMail({
-        from,
+      await this.resend.emails.send({
+        from: this.from,
         to: application.borrowerEmail,
         subject: 'Action Required: Upload Your Loan Documents',
         html: uploadInvitationHtml({
@@ -52,7 +36,7 @@ export class NotificationsService {
         }),
       });
       this.logger.log(
-        `Upload invitation sent to borrower for application ${application.id}`,
+        `Upload invitation sent to ${application.borrowerEmail} for application ${application.id}`,
         NotificationsService.name,
       );
     } catch (err) {
@@ -68,12 +52,11 @@ export class NotificationsService {
     flags: BorrowerFlag[],
   ): Promise<void> {
     const appUrl = this.config.get<string>('appUrl');
-    const from = this.config.get<string>('email.from');
     const reviewUrl = `${appUrl}/applications/${application.id}`;
 
     try {
-      await this.transporter.sendMail({
-        from,
+      await this.resend.emails.send({
+        from: this.from,
         to: application.lenderEmail,
         subject: `Application Ready for Review — ${application.borrowerName ?? application.id}`,
         html: extractionCompleteHtml({
@@ -84,7 +67,7 @@ export class NotificationsService {
         }),
       });
       this.logger.log(
-        `Extraction complete notification sent to lender for application ${application.id}`,
+        `Extraction complete notification sent to ${application.lenderEmail} for application ${application.id}`,
         NotificationsService.name,
       );
     } catch (err) {

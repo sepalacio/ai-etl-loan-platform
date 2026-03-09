@@ -8,6 +8,15 @@ export default defineConfig({
   server: {
     proxy: {
       '/api': 'http://localhost:3000',
+      '/upload': {
+        target: 'http://localhost:3000',
+        bypass(req) {
+          // Browser navigation sends Accept: text/html → serve the React SPA
+          // Axios/fetch API calls send Accept: application/json → proxy to backend
+          const accept = req.headers?.['accept'] ?? '';
+          if (accept.includes('text/html')) return req.url;
+        },
+      },
     },
   },
 })

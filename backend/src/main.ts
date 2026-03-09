@@ -49,7 +49,7 @@ async function bootstrap(): Promise<{
   app.use(urlencoded({ extended: true, limit: `${bodyLimitMb}mb` }));
 
   // ── Routing ───────────────────────────────────────────────────────────────
-  app.setGlobalPrefix(apiPrefix, { exclude: ['/health'] });
+  app.setGlobalPrefix(apiPrefix, { exclude: ['/health', 'upload/:token'] });
 
   // ── Global pipes & filters ────────────────────────────────────────────────
   app.useGlobalPipes(

@@ -24,12 +24,9 @@ export const envValidationSchema = Joi.object({
   // Anthropic
   ANTHROPIC_API_KEY: Joi.string().required(),
 
-  // Email
-  SMTP_HOST: Joi.string().required(),
-  SMTP_PORT: Joi.number().default(587),
-  SMTP_USER: Joi.string().required(),
-  SMTP_PASS: Joi.string().required(),
-  SMTP_FROM: Joi.string().email().required(),
+  // Email — Resend
+  RESEND_API_KEY: Joi.string().required(),
+  RESEND_FROM: Joi.string().default('LoanPro <onboarding@resend.dev>'),
 
   // Encryption
   ENCRYPTION_KEY: Joi.string().hex().length(64).required(),
@@ -64,11 +61,8 @@ export default () => ({
     extractionModel: 'claude-sonnet-4-6',
   },
   email: {
-    host: process.env.SMTP_HOST ?? 'smtp.mailtrap.io',
-    port: parseInt(process.env.SMTP_PORT ?? '587', 10),
-    user: process.env.SMTP_USER ?? '',
-    pass: process.env.SMTP_PASS ?? '',
-    from: process.env.SMTP_FROM ?? 'noreply@loanpro.dev',
+    resendApiKey: process.env.RESEND_API_KEY ?? '',
+    from: process.env.RESEND_FROM ?? 'LoanPro <onboarding@resend.dev>',
   },
   encryption: {
     key: process.env.ENCRYPTION_KEY ?? '',
