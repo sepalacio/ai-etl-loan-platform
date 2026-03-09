@@ -28,6 +28,7 @@ Edit `.env` and fill in the required secrets:
 | `DB_PASSWORD` | Postgres password (must match `docker-compose.yml`) |
 | `AWS_ACCESS_KEY_ID` | AWS credentials for S3 document storage |
 | `AWS_SECRET_ACCESS_KEY` | AWS credentials for S3 document storage |
+| `S3_BUCKET` | S3 bucket name |
 | `ANTHROPIC_API_KEY` | Claude API key for document extraction |
 | `RESEND_API_KEY` | Resend API key — free tier at [resend.com](https://resend.com) (no domain required) |
 | `ENCRYPTION_KEY` | 64-char hex key — generate with `openssl rand -hex 32` |
@@ -50,17 +51,13 @@ To stop: `docker compose down` (add `-v` to also remove the data volume).
 
 ## 4. Generate and run migrations
 
-Migration files are not committed — they must be generated from the entity definitions against a live database. The database (step 3) must be running before this step.
+Migration files are committed to the repo. The database (step 3) must be running before this step.
 
 ```bash
-# Generate the initial schema migration
-npm run migration:generate -- src/database/migrations/InitialSchema
-
-# Apply it
 npm run migration:run
 ```
 
-In **development**, any pending migrations also run automatically on app startup (`migrationsRun: true`). Generating and running once before the first start is still recommended to have an explicit migration file in the repo.
+In **development**, any pending migrations also run automatically on app startup (`migrationsRun: true`). Running explicitly before the first start is recommended to confirm the schema is applied.
 
 In **production** (`NODE_ENV=production`), auto-run is disabled. Migrations must be run explicitly as a pre-deployment step before starting the new app version:
 

@@ -56,7 +56,7 @@ Edit `.env` and fill in the required secrets:
 | `DB_PASSWORD` | Postgres password (must match `docker-compose.yml`) |
 | `AWS_ACCESS_KEY_ID` | AWS credentials for S3 document storage |
 | `AWS_SECRET_ACCESS_KEY` | AWS credentials for S3 document storage |
-| `AWS_S3_BUCKET` | S3 bucket name |
+| `S3_BUCKET` | S3 bucket name |
 | `ANTHROPIC_API_KEY` | Claude API key |
 | `RESEND_API_KEY` | Resend API key for transactional email |
 | `ENCRYPTION_KEY` | 64-char hex key — generate with `openssl rand -hex 32` |
@@ -69,7 +69,6 @@ The database (Step 1) must be running before this step.
 
 ```bash
 # From backend/
-npm run migration:generate -- src/database/migrations/InitialSchema
 npm run migration:run
 ```
 
