@@ -3,13 +3,16 @@ import {
   Controller,
   Get,
   Param,
+  ParseUUIDPipe,
   Post,
   Headers,
   HttpCode,
   HttpStatus,
+  UseGuards,
 } from '@nestjs/common';
 import { ApplicationsService } from './applications.service';
 import { CreateApplicationDto } from './dto/create-application.dto';
+import { LenderEmailGuard } from '../../common/guards/lender-email.guard';
 
 /**
  * Lender-facing endpoints.
@@ -17,6 +20,7 @@ import { CreateApplicationDto } from './dto/create-application.dto';
  * the X-Lender-Email header as a lightweight identity mechanism.
  */
 @Controller('applications')
+@UseGuards(LenderEmailGuard)
 export class ApplicationsController {
   constructor(private readonly service: ApplicationsService) {}
 
@@ -36,7 +40,7 @@ export class ApplicationsController {
 
   @Get(':id')
   findOne(
-    @Param('id') id: string,
+    @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
     @Headers('x-lender-email') lenderEmail: string,
   ) {
     return this.service.findOne(id, lenderEmail);
@@ -44,7 +48,7 @@ export class ApplicationsController {
 
   @Get(':id/profile')
   getBorrowerProfile(
-    @Param('id') id: string,
+    @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
     @Headers('x-lender-email') lenderEmail: string,
   ) {
     return this.service.getBorrowerProfile(id, lenderEmail);

@@ -17,6 +17,14 @@ export const API_ERROR_MESSAGES: Record<string, string> = {
   NO_FILES:
     'No files were received. Please select at least one PDF and try again.',
 
+  // Auth / identity
+  MISSING_LENDER_EMAIL:
+    'Your session is missing a valid email. Please sign out and sign back in.',
+
+  // Validation
+  INVALID_UUID:
+    'The requested resource identifier is invalid.',
+
   // Generic fallbacks
   INTERNAL_ERROR:
     'An unexpected error occurred on our end. Please try again in a moment.',

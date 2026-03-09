@@ -47,14 +47,31 @@ export function BorrowerUpload() {
       .catch(() => setTokenState('invalid'));
   }, [token]);
 
+  const MAX_FILES = 10;
+  const MAX_FILE_SIZE_MB = 20;
+  const MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024;
+
   const addFiles = (incoming: FileList | null) => {
     if (!incoming) return;
+
     const pdfs = Array.from(incoming).filter(
       (f) => f.type === 'application/pdf' || f.name.endsWith('.pdf'),
     );
+
+    const oversized = pdfs.filter((f) => f.size > MAX_FILE_SIZE_BYTES);
+    if (oversized.length > 0) {
+      setError(`Files must be under ${MAX_FILE_SIZE_MB} MB: ${oversized.map((f) => f.name).join(', ')}`);
+      return;
+    }
+
     setFiles((prev) => {
       const existing = new Set(prev.map((f) => f.name));
-      return [...prev, ...pdfs.filter((f) => !existing.has(f.name))];
+      const toAdd = pdfs.filter((f) => !existing.has(f.name));
+      if (prev.length + toAdd.length > MAX_FILES) {
+        setError(`You can upload a maximum of ${MAX_FILES} files at once.`);
+        return prev;
+      }
+      return [...prev, ...toAdd];
     });
   };
 
