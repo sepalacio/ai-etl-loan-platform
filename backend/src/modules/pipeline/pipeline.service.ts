@@ -78,9 +78,9 @@ export class PipelineService {
         PipelineService.name,
       );
     } catch (err) {
-      const error = err as Error;
+      const error = err as Error & { status?: number; code?: string };
       doc.status = DocumentStatus.FAILED;
-      doc.failureReason = error.message;
+      doc.failureReason = this.handlePipelineError(error);
       await this.docRepo.save(doc);
       this.logger.error(
         `Pipeline failed for document ${docId}: ${error.message}`,
@@ -484,9 +484,8 @@ export class PipelineService {
   // ─── Retry (called by cron) ───────────────────────────────────────────────
 
   async retryFailedDocument(docId: string): Promise<void> {
-    const doc = await this.docRepo.findOne({
-      where: { id: docId, status: DocumentStatus.FAILED },
-    });
+    // Accept both explicit FAILED documents and stuck in-progress ones
+    const doc = await this.docRepo.findOne({ where: { id: docId } });
     if (!doc || doc.retryCount >= 3) return;
 
     doc.retryCount += 1;
@@ -496,5 +495,38 @@ export class PipelineService {
     await this.docRepo.save(doc);
 
     await this.processDocument(docId);
+  }
+
+  // ─── Error classification ─────────────────────────────────────────────────
+
+  private handlePipelineError(
+    err: Error & { status?: number; code?: string },
+  ): string {
+    const msg = err.message ?? '';
+    if (
+      err.status === 429 ||
+      msg.includes('429') ||
+      msg.toLowerCase().includes('rate limit')
+    ) {
+      return 'AI rate limit reached — will retry automatically';
+    }
+    if ((err.status != null && err.status >= 500) || msg.includes('529')) {
+      return 'AI service temporarily unavailable — will retry automatically';
+    }
+    if (
+      msg.toLowerCase().includes('json') ||
+      msg.toLowerCase().includes('parse') ||
+      msg.toLowerCase().includes('unexpected token')
+    ) {
+      return 'AI returned an unexpected response format — will retry automatically';
+    }
+    if (
+      msg.toLowerCase().includes('s3') ||
+      msg.toLowerCase().includes('nosuchkey') ||
+      msg.toLowerCase().includes('network')
+    ) {
+      return 'File could not be read from storage — will retry automatically';
+    }
+    return 'An unexpected error occurred during processing — will retry automatically';
   }
 }

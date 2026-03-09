@@ -240,7 +240,16 @@ export function ApplicationDetail() {
                   <div className="min-w-0">
                     <p className="text-sm font-medium text-slate-800 truncate">{doc.originalFilename}</p>
                     {doc.documentType && <p className="text-xs text-slate-400 mt-0.5">{doc.documentType.replace(/_/g, ' ')}</p>}
-                    {doc.failureReason && <p className="text-xs text-red-500 mt-0.5">{doc.failureReason}</p>}
+                    {doc.failureReason && (
+                      <p className="text-xs text-red-500 mt-0.5 flex items-center gap-1">
+                        {doc.failedAtStep && (
+                          <span className="font-mono bg-red-50 border border-red-100 px-1 py-0.5 rounded text-red-400">
+                            {doc.failedAtStep}
+                          </span>
+                        )}
+                        {doc.failureReason}
+                      </p>
+                    )}
                   </div>
                 </div>
                 <div className="flex items-center gap-4 shrink-0 ml-4">
