@@ -1,5 +1,11 @@
 @import "tailwindcss";
 
+@layer base {
+  button, a, [role="button"] {
+    cursor: pointer;
+  }
+}
+
 /**
  * Design tokens — update once here to rebrand the entire app.
  *

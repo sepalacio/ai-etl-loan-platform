@@ -1,7 +1,9 @@
+import { useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useApplication } from '../hooks/useApplication';
-import type { BorrowerProfile, IncomeRecord, AccountRecord, BorrowerFlag } from '../types/api';
+import type { BorrowerProfile, IncomeRecord, AccountRecord, BorrowerFlag, LoanDocument } from '../types/api';
 import { StatusBadge } from '../components/StatusBadge';
+import { useLazyGetDocumentDownloadUrlQuery } from '../store/api';
 
 // ─── Constants ──────────────────────────────────────────────────────────────
 
@@ -13,6 +15,28 @@ const FLAG_LABELS: Record<BorrowerFlag, string> = {
   MISSING_SSN: 'SSN was not found in any submitted document',
   NAME_DISCREPANCY: 'Borrower name differs across documents — possible mixed-person upload, manual review required',
 };
+
+function DownloadButton({ loading, onClick }: { loading: boolean; onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      disabled={loading}
+      title="Download source document"
+      className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 disabled:opacity-40 transition-all"
+    >
+      {loading ? (
+        <svg className="w-3.5 h-3.5 animate-spin" viewBox="0 0 24 24" fill="none">
+          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
+        </svg>
+      ) : (
+        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+        </svg>
+      )}
+    </button>
+  );
+}
 
 const ACCOUNT_TYPE_COLORS: Record<string, { stroke: string; label: string; dot: string }> = {
   CHECKING:   { stroke: '#16a34a', label: 'Checking',   dot: 'bg-primary-600'  },
@@ -361,27 +385,26 @@ function AddressDiscrepancies({ items }: { items: string[] }) {
 
 // ─── Income Records Table ─────────────────────────────────────────────────────
 
-function IncomeTable({ records }: { records: IncomeRecord[] }) {
+function IncomeTable({
+  records,
+  downloadingId,
+  onDownload,
+}: {
+  records: IncomeRecord[];
+  downloadingId: string | null;
+  onDownload: (docId: string) => void;
+}) {
   return (
     <div className="overflow-x-auto">
       <table className="w-full text-sm">
         <thead>
           <tr className="border-b border-slate-100">
-            <th className="text-left text-xs font-semibold text-slate-400 uppercase tracking-wide pb-3 pr-4">
-              Income Type
-            </th>
-            <th className="text-left text-xs font-semibold text-slate-400 uppercase tracking-wide pb-3 pr-4">
-              Employer
-            </th>
-            <th className="text-right text-xs font-semibold text-slate-400 uppercase tracking-wide pb-3 pr-4">
-              Annual Amount
-            </th>
-            <th className="text-right text-xs font-semibold text-slate-400 uppercase tracking-wide pb-3 pr-4">
-              YTD Amount
-            </th>
-            <th className="text-right text-xs font-semibold text-slate-400 uppercase tracking-wide pb-3">
-              Tax Year
-            </th>
+            <th className="text-left text-xs font-semibold text-slate-400 uppercase tracking-wide pb-3 pr-4">Income Type</th>
+            <th className="text-left text-xs font-semibold text-slate-400 uppercase tracking-wide pb-3 pr-4">Employer</th>
+            <th className="text-right text-xs font-semibold text-slate-400 uppercase tracking-wide pb-3 pr-4">Annual Amount</th>
+            <th className="text-right text-xs font-semibold text-slate-400 uppercase tracking-wide pb-3 pr-4">YTD Amount</th>
+            <th className="text-right text-xs font-semibold text-slate-400 uppercase tracking-wide pb-3 pr-4">Tax Year</th>
+            <th className="pb-3" />
           </tr>
         </thead>
         <tbody className="divide-y divide-slate-50">
@@ -395,14 +418,18 @@ function IncomeTable({ records }: { records: IncomeRecord[] }) {
               <td className="py-3.5 pr-4 text-slate-700 font-medium">
                 {r.employer ?? <span className="text-slate-300">—</span>}
               </td>
-              <td className="py-3.5 pr-4 text-right text-slate-900 font-bold tabular-nums">
-                {fmt(r.annualAmount)}
-              </td>
+              <td className="py-3.5 pr-4 text-right text-slate-900 font-bold tabular-nums">{fmt(r.annualAmount)}</td>
               <td className="py-3.5 pr-4 text-right text-slate-600 tabular-nums">
                 {r.ytdAmount != null ? fmt(r.ytdAmount) : <span className="text-slate-300">—</span>}
               </td>
-              <td className="py-3.5 text-right text-slate-500 tabular-nums">
+              <td className="py-3.5 pr-4 text-right text-slate-500 tabular-nums">
                 {r.taxYear ?? <span className="text-slate-300">—</span>}
+              </td>
+              <td className="py-3.5">
+                <DownloadButton
+                  loading={downloadingId === r.sourceDocumentId}
+                  onClick={() => onDownload(r.sourceDocumentId)}
+                />
               </td>
             </tr>
           ))}
@@ -415,7 +442,7 @@ function IncomeTable({ records }: { records: IncomeRecord[] }) {
             <td className="pt-3 text-right font-bold text-slate-900 tabular-nums">
               {fmt(records.reduce((s, r) => s + Number(r.annualAmount), 0))}
             </td>
-            <td colSpan={2} />
+            <td colSpan={3} />
           </tr>
         </tfoot>
       </table>
@@ -425,24 +452,25 @@ function IncomeTable({ records }: { records: IncomeRecord[] }) {
 
 // ─── Account Records Table ────────────────────────────────────────────────────
 
-function AccountTable({ records }: { records: AccountRecord[] }) {
+function AccountTable({
+  records,
+  downloadingId,
+  onDownload,
+}: {
+  records: AccountRecord[];
+  downloadingId: string | null;
+  onDownload: (docId: string) => void;
+}) {
   return (
     <div className="overflow-x-auto">
       <table className="w-full text-sm">
         <thead>
           <tr className="border-b border-slate-100">
-            <th className="text-left text-xs font-semibold text-slate-400 uppercase tracking-wide pb-3 pr-4">
-              Institution
-            </th>
-            <th className="text-left text-xs font-semibold text-slate-400 uppercase tracking-wide pb-3 pr-4">
-              Account Type
-            </th>
-            <th className="text-left text-xs font-semibold text-slate-400 uppercase tracking-wide pb-3 pr-4">
-              Account
-            </th>
-            <th className="text-right text-xs font-semibold text-slate-400 uppercase tracking-wide pb-3">
-              Balance
-            </th>
+            <th className="text-left text-xs font-semibold text-slate-400 uppercase tracking-wide pb-3 pr-4">Institution</th>
+            <th className="text-left text-xs font-semibold text-slate-400 uppercase tracking-wide pb-3 pr-4">Account Type</th>
+            <th className="text-left text-xs font-semibold text-slate-400 uppercase tracking-wide pb-3 pr-4">Account</th>
+            <th className="text-right text-xs font-semibold text-slate-400 uppercase tracking-wide pb-3 pr-4">Balance</th>
+            <th className="pb-3" />
           </tr>
         </thead>
         <tbody className="divide-y divide-slate-50">
@@ -452,27 +480,26 @@ function AccountTable({ records }: { records: AccountRecord[] }) {
               <tr key={r.id} className="group hover:bg-slate-50 transition-colors">
                 <td className="py-3.5 pr-4">
                   <div className="flex items-center gap-2">
-                    <span
-                      className="w-2 h-2 rounded-full flex-shrink-0"
-                      style={{ backgroundColor: typeCfg.stroke }}
-                    />
+                    <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: typeCfg.stroke }} />
                     <span className="text-slate-700 font-medium">
                       {r.institution ?? <span className="text-slate-300 font-normal">Unknown</span>}
                     </span>
                   </div>
                 </td>
                 <td className="py-3.5 pr-4">
-                  <span className="text-xs font-medium text-slate-600 capitalize">
-                    {typeCfg.label}
-                  </span>
+                  <span className="text-xs font-medium text-slate-600 capitalize">{typeCfg.label}</span>
                 </td>
                 <td className="py-3.5 pr-4">
                   {r.accountNumber
                     ? <span className="font-mono text-xs text-slate-500">{r.accountNumber}</span>
                     : <span className="text-slate-300">—</span>}
                 </td>
-                <td className="py-3.5 text-right font-bold text-slate-900 tabular-nums">
-                  {fmt(r.balance)}
+                <td className="py-3.5 pr-4 text-right font-bold text-slate-900 tabular-nums">{fmt(r.balance)}</td>
+                <td className="py-3.5">
+                  <DownloadButton
+                    loading={downloadingId === r.sourceDocumentId}
+                    onClick={() => onDownload(r.sourceDocumentId)}
+                  />
                 </td>
               </tr>
             );
@@ -486,6 +513,7 @@ function AccountTable({ records }: { records: AccountRecord[] }) {
             <td className="pt-3 text-right font-bold text-slate-900 tabular-nums">
               {fmt(records.reduce((s, r) => s + Number(r.balance), 0))}
             </td>
+            <td />
           </tr>
         </tfoot>
       </table>
@@ -513,11 +541,31 @@ function Section({ title, children, count }: { title: string; children: React.Re
 
 // ─── Profile Content ──────────────────────────────────────────────────────────
 
-function ProfileContent({ profile }: { profile: BorrowerProfile }) {
+function ProfileContent({ profile, documents }: { profile: BorrowerProfile; documents: LoanDocument[] }) {
   const incomeRecords = profile.incomeRecords ?? [];
   const accountRecords = profile.accountRecords ?? [];
   const flags = profile.flags ?? [];
   const discrepancies = profile.addressDiscrepancies ?? [];
+
+  const [downloadingId, setDownloadingId] = useState<string | null>(null);
+  const [fetchDownloadUrl] = useLazyGetDocumentDownloadUrlQuery();
+
+  const handleDownload = async (docId: string) => {
+    setDownloadingId(docId);
+    try {
+      const doc = documents.find((d) => d.id === docId);
+      const filename = doc?.originalFilename ?? 'document.pdf';
+      const { data } = await fetchDownloadUrl({ applicationId: profile.applicationId, docId });
+      if (data?.url) {
+        const a = document.createElement('a');
+        a.href = data.url;
+        a.download = filename;
+        a.click();
+      }
+    } finally {
+      setDownloadingId(null);
+    }
+  };
 
   const totalIncome = Number(profile.totalAnnualIncome);
   const totalAssets = Number(profile.totalAssets);
@@ -609,14 +657,13 @@ function ProfileContent({ profile }: { profile: BorrowerProfile }) {
       {/* Income Records Table */}
       {incomeRecords.length > 0 && (
         <Section title="Income Records" count={incomeRecords.length}>
-          <IncomeTable records={incomeRecords} />
+          <IncomeTable records={incomeRecords} downloadingId={downloadingId} onDownload={handleDownload} />
         </Section>
       )}
 
-      {/* Account Records Table */}
       {accountRecords.length > 0 && (
         <Section title="Account Records" count={accountRecords.length}>
-          <AccountTable records={accountRecords} />
+          <AccountTable records={accountRecords} downloadingId={downloadingId} onDownload={handleDownload} />
         </Section>
       )}
     </div>
@@ -751,7 +798,7 @@ export function BorrowerProfilePage() {
 
       {/* Profile body or empty state */}
       {profile ? (
-        <ProfileContent profile={profile} />
+        <ProfileContent profile={profile} documents={app.documents ?? []} />
       ) : (
         <div className="flex flex-col items-center justify-center py-20 text-center">
           <div className="w-14 h-14 rounded-2xl bg-slate-100 flex items-center justify-center mb-4">
