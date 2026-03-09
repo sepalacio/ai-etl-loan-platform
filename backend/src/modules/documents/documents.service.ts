@@ -55,7 +55,10 @@ export class DocumentsService {
     }
 
     const results: IngestResult[] = [];
+    const acceptedDocs: Document[] = [];
 
+    // Phase 1 — upload all files to S3 synchronously before starting any pipeline.
+    // This keeps the HTTP response fast and gives us the full list of docs to sequence.
     for (const file of files) {
       try {
         const doc = await this.uploadToS3(
@@ -64,22 +67,12 @@ export class DocumentsService {
           file.originalname,
           file.mimetype,
         );
-
+        acceptedDocs.push(doc);
         results.push({
           filename: file.originalname,
           documentId: doc.id,
           duplicate: false,
         });
-
-        // Fire-and-forget pipeline; errors are caught inside processDocument
-        void this.pipeline
-          .processDocument(doc.id)
-          .catch((err: Error) =>
-            this.logger.error(
-              `Background pipeline error: ${err.message}`,
-              DocumentsService.name,
-            ),
-          );
       } catch (err) {
         if (err instanceof DuplicateDocumentException) {
           const body = err.getResponse() as { existingId: string };
@@ -94,14 +87,22 @@ export class DocumentsService {
       }
     }
 
-    // Async status update after ingestion
-    void this.applicationsService
-      .updateStatus(application.id)
-      .catch((err: Error) =>
-        this.logger.error(
-          `Status update error: ${err.message}`,
-          DocumentsService.name,
-        ),
+    // Phase 2 — run pipelines sequentially in the background, one document at a time.
+    // Sequential processing avoids bursting Anthropic API rate limits when multiple
+    // documents are uploaded in a single request.
+    void acceptedDocs
+      .reduce<
+        Promise<void>
+      >((chain, doc) => chain.then(() => this.pipeline.processDocument(doc.id).catch((err: Error) => this.logger.error(`Background pipeline error for ${doc.id}: ${err.message}`, DocumentsService.name))), Promise.resolve())
+      .then(() =>
+        this.applicationsService
+          .updateStatus(application.id)
+          .catch((err: Error) =>
+            this.logger.error(
+              `Status update error: ${err.message}`,
+              DocumentsService.name,
+            ),
+          ),
       );
 
     return results;

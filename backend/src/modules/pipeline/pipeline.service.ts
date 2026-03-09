@@ -18,6 +18,7 @@ import { IncomeRecord } from './entities/income-record.entity';
 import { AccountRecord } from './entities/account-record.entity';
 import { AppLogger } from '../../common/logger/app.logger';
 import { EncryptionService } from '../../common/crypto/encryption.service';
+import { AnthropicRateLimiter } from '../../common/anthropic/anthropic-rate-limiter.service';
 import {
   CLASSIFICATION_SYSTEM_PROMPT,
   EXTRACTION_SYSTEM_PROMPT,
@@ -49,6 +50,7 @@ export class PipelineService {
     private readonly config: ConfigService,
     private readonly s3: S3Service,
     private readonly encryption: EncryptionService,
+    private readonly rateLimiter: AnthropicRateLimiter,
   ) {
     this.anthropic = new Anthropic({
       apiKey: this.config.get<string>('anthropic.apiKey') ?? '',
@@ -108,6 +110,7 @@ export class PipelineService {
       this.config.get<string>('anthropic.classificationModel') ??
       'claude-haiku-4-5-20251001';
 
+    await this.rateLimiter.throttle();
     const response = await this.anthropic.messages.create({
       model: classificationModel,
       max_tokens: 256,
@@ -194,6 +197,7 @@ export class PipelineService {
       ];
     }
 
+    await this.rateLimiter.throttle();
     const response = await this.anthropic.messages.create({
       model: extractionModel,
       max_tokens: 4096,

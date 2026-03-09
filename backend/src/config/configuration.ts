@@ -59,6 +59,7 @@ export default () => ({
     apiKey: process.env.ANTHROPIC_API_KEY ?? '',
     classificationModel: 'claude-haiku-4-5-20251001',
     extractionModel: 'claude-sonnet-4-6',
+    rpm: parseInt(process.env.ANTHROPIC_RPM ?? '5', 10),
   },
   email: {
     resendApiKey: process.env.RESEND_API_KEY ?? '',
