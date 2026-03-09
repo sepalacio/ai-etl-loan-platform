@@ -13,6 +13,8 @@ import { FilesInterceptor } from '@nestjs/platform-express';
 import { DocumentsService } from './documents.service';
 import { ApplicationsService } from '../applications/applications.service';
 
+const MAX_FILE_SIZE_MB = 25 * 1024 * 1024; // 25 MB
+
 @Controller('')
 export class DocumentsController {
   constructor(
@@ -51,7 +53,7 @@ export class DocumentsController {
           cb(null, true);
         }
       },
-      limits: { fileSize: 20 * 1024 * 1024 }, // 20 MB
+      limits: { fileSize: MAX_FILE_SIZE_MB },
     }),
   )
   async upload(

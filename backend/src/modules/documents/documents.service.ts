@@ -1,5 +1,9 @@
 import * as crypto from 'crypto';
-import { Injectable } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  UnprocessableEntityException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { v4 as uuidv4 } from 'uuid';
@@ -7,10 +11,13 @@ import { ApplicationsService } from '../applications/applications.service';
 import { PipelineService } from '../pipeline/pipeline.service';
 import { Document } from './entities/document.entity';
 import { DocumentStatus } from './enums/document.enums';
+import { ApplicationStatus } from '../applications/enums/application.enums';
 import { LoanApplication } from '../applications/entities/loan-application.entity';
 import { DuplicateDocumentException } from './exceptions/duplicate-document.exception';
 import { S3Service } from '../../common/s3/s3.service';
 import { AppLogger } from '../../common/logger/app.logger';
+
+const PDF_MAGIC = Buffer.from([0x25, 0x50, 0x44, 0x46]); // %PDF
 
 interface IngestResult {
   filename: string;
@@ -36,6 +43,17 @@ export class DocumentsService {
     files: Express.Multer.File[],
   ): Promise<IngestResult[]> {
     const application = await this.applicationsService.findByToken(token);
+
+    if (
+      application.status === ApplicationStatus.COMPLETE ||
+      application.status === ApplicationStatus.FAILED
+    ) {
+      throw new UnprocessableEntityException({
+        error: 'APPLICATION_CLOSED',
+        message: `Application is already ${application.status.toLowerCase()} and no longer accepts uploads`,
+      });
+    }
+
     const results: IngestResult[] = [];
 
     for (const file of files) {
@@ -97,6 +115,13 @@ export class DocumentsService {
     originalFilename: string,
     mimeType: string,
   ): Promise<Document> {
+    if (fileBuffer.length < 4 || !fileBuffer.slice(0, 4).equals(PDF_MAGIC)) {
+      throw new BadRequestException({
+        error: 'CORRUPTED_FILE',
+        message: `File '${originalFilename}' does not appear to be a valid PDF`,
+      });
+    }
+
     const contentHash = crypto
       .createHash('sha256')
       .update(fileBuffer)

@@ -10,18 +10,26 @@ export const API_ERROR_MESSAGES: Record<string, string> = {
     'This application could not be found. It may have been deleted.',
 
   // Upload / Documents
-  INVALID_TOKEN:
+  INVALID_UPLOAD_TOKEN:
     'This upload link is invalid or has already been used. Contact your lender to request a new one.',
   INVALID_FILE_TYPE:
     'Only PDF files are accepted. Please check your selection and try again.',
   NO_FILES:
     'No files were received. Please select at least one PDF and try again.',
+  FILE_TOO_LARGE:
+    'One or more files exceed the 25 MB size limit. Please reduce the file size and try again.',
+  CORRUPTED_FILE:
+    'One or more files could not be read as valid PDFs. Please check the files and try again.',
+  APPLICATION_CLOSED:
+    'This application is no longer accepting documents. Please contact your lender.',
+  DUPLICATE_DOCUMENT:
+    'One or more files have already been uploaded for this application.',
 
   // Auth / identity
   MISSING_LENDER_EMAIL:
     'Your session is missing a valid email. Please sign out and sign back in.',
 
-  // Validation
+  // Input / routing
   INVALID_UUID:
     'The requested resource identifier is invalid.',
 

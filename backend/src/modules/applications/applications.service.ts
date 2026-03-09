@@ -91,7 +91,7 @@ export class ApplicationsService {
     });
     if (!app)
       throw new NotFoundException({
-        error: 'INVALID_TOKEN',
+        error: 'INVALID_UPLOAD_TOKEN',
         message: 'Upload token does not match any active application',
       });
     return app;
