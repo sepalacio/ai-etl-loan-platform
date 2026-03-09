@@ -11,6 +11,8 @@ const FLAG_LABELS: Record<BorrowerFlag, string> = {
     'Some fields have low extraction confidence — verify manually',
   [BorrowerFlag.MISSING_SSN]:
     'SSN could not be extracted — borrower follow-up needed',
+  [BorrowerFlag.NAME_DISCREPANCY]:
+    'Borrower name differs across documents — possible mixed-person upload',
 };
 
 export function extractionCompleteHtml(params: {

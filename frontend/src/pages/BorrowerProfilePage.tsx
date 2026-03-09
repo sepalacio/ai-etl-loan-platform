@@ -14,6 +14,7 @@ const FLAG_LABELS: Record<BorrowerFlag, string> = {
   LOW_EXTRACTION_CONFIDENCE: 'Low AI extraction confidence on one or more documents',
   MISSING_SSN: 'SSN was not found in any submitted document',
   NAME_DISCREPANCY: 'Borrower name differs across documents — possible mixed-person upload, manual review required',
+
 };
 
 function DownloadButton({ loading, onClick }: { loading: boolean; onClick: () => void }) {
